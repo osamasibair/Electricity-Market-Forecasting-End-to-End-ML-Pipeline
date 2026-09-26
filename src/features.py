@@ -15,9 +15,9 @@ def build_features(df):
     df["dayofyear"] = local.dayofyear
     df["is_holiday"] = pd.Series(local.date, index=df.index).isin(uk_holidays).astype(int)
     df["hdd"] = (15.5 - df["temperature_2m"]).clip(lower=0)
-    df["demand_lag_48"] = df["demand"].shift(48)
+    df["demand_lag_recent"] = df["demand"].shift(48).where(local.hour < 8, df["demand"].shift(96))
     df["demand_lag_336"] = df["demand"].shift(336)
-    df["demand_roll_48"] = df["demand"].shift(48).rolling(48).mean()
+    df["demand_roll_96"] = df["demand"].shift(96).rolling(48).mean()
     df = df.drop(columns=["wind_speed_10m"])
     return df.dropna()
 
