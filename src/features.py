@@ -1,5 +1,7 @@
 """Build model features from the processed dataset."""
 
+from threading import local
+
 import pandas as pd
 from pathlib import Path
 import holidays
@@ -14,6 +16,7 @@ def build_features(df):
     df["dayofweek"] = local.dayofweek
     df["dayofyear"] = local.dayofyear
     df["is_holiday"] = pd.Series(local.date, index=df.index).isin(uk_holidays).astype(int)
+    df["is_christmas"] = (((local.month == 12) & (local.day >= 24)) | ((local.month == 1) & (local.day == 1))).astype(int)
     df["hdd"] = (15.5 - df["temperature_2m"]).clip(lower=0)
     df["demand_lag_recent"] = df["demand"].shift(48).where(local.hour < 8, df["demand"].shift(96))
     df["demand_lag_336"] = df["demand"].shift(336)
