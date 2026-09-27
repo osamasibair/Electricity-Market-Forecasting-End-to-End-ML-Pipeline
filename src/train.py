@@ -1,0 +1,37 @@
+"""Train a next day demand model and compare it to a baseline."""
+
+from pathlib import Path
+import joblib
+import lightgbm as lgb
+import pandas as pd
+from evaluate import metrics
+
+processed = Path("data/processed")
+models = Path("models")
+split_date = "2025-09-01"
+
+features = ["temperature_2m", "hdd", "period", "dayofweek", "dayofyear", "is_holiday", "demand_lag_recent", "demand_lag_336", "demand_roll_96",]
+target = "demand"
+
+def train_model(train): #LightGBM model training function
+    model = lgb.LGBMRegressor(n_estimators=500, learning_rate=0.05, random_state=42, verbose=-1)
+    model.fit(train[features], train[target])
+    return model
+
+if __name__ == "__main__":
+    df = pd.read_csv(processed / "features.csv", index_col="timestamp", parse_dates=True)
+    train = df[df.index < split_date]
+    test = df[df.index >= split_date]
+    print(f"train: {len(train)} rows, test: {len(test)} rows")
+
+    baseline = metrics(test[target], test["demand_lag_336"])
+    model = train_model(train)
+    predictions = model.predict(test[features])
+    result = metrics(test[target], predictions)
+
+    for name, m in [("baseline", baseline), ("lightgbm", result)]:
+        print(f"{name:10} MAE {m['mae']:6.0f} MW   RMSE {m['rmse']:6.0f} MW   MAPE {m['mape']:5.2f}%")
+
+    models.mkdir(exist_ok=True)
+    joblib.dump(model, models / "model.joblib")
+    print("saved models/model.joblib")

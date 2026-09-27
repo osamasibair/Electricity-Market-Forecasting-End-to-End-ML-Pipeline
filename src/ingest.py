@@ -1,4 +1,4 @@
-"""Fetching raw demand and weather data from public APIs"""
+"""Fetching raw demand and weather data from public APIs."""
 
 import time
 from pathlib import Path
