@@ -30,7 +30,7 @@ def fetch_weather(start, end, lat=51.5072, lon=-0.1276):
         "longitude": lon,
         "start_date": start,
         "end_date": end,
-        "hourly": "temperature_2m,wind_speed_10m",
+        "hourly": "temperature_2m,wind_speed_10m,shortwave_radiation",
         "timezone": "UTC",
     }
     response = requests.get(weather, params=query, timeout=60)

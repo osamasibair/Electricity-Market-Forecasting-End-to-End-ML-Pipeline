@@ -10,7 +10,7 @@ processed = Path("data/processed")
 models = Path("models")
 split_date = "2025-09-01"
 
-features = ["temperature_2m", "hdd", "period", "dayofweek", "dayofyear", "is_holiday", "demand_lag_recent", "demand_lag_336", "demand_roll_96",]
+features = ["temperature_2m", "hdd", "period", "dayofweek", "dayofyear", "is_holiday", "demand_lag_recent", "demand_lag_336", "demand_roll_96", "shortwave_radiation",]
 target = "demand"
 
 def train_model(train): #LightGBM model training function
