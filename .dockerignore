@@ -1,0 +1,7 @@
+venv/
+data/raw/
+notebooks/
+.git/
+__pycache__/
+.DS_Store
+.ipynb_checkpoints/
