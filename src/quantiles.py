@@ -55,6 +55,7 @@ if __name__ == "__main__":
 
     refit = train_quantile_models(train)
     refit_preds = {q: model.predict(test[features]) for q, model in refit.items()}
+    print(f"refit median MAPE: {metrics(test[target], refit_preds[0.5])['mape']:.2f}%")
     interval_report("refit", test[target], refit_preds[0.1] - adjustment, refit_preds[0.9] + adjustment)
 
     joblib.dump({"models": refit, "adjustment": adjustment}, models / "quantile_models.joblib")
