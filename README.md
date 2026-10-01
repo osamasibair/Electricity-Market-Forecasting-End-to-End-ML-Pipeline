@@ -2,7 +2,7 @@
 
 An end to end machine learning pipeline that forecasts Great Britain's half hourly electricity demand one day ahead, from raw public data to a tested, containerised API.
 
-**LightGBM day-ahead model: 5.05% MAPE, about 40% lower error than a same-time-last-week baseline (8.40%).**
+**LightGBM day-ahead model: 5.05% MAPE, about 40% lower error than a same-time-last-week baseline (8.40%), with 80% prediction intervals achieving 81.5% coverage.**
 
 **Stack:** Python, pandas, LightGBM, FastAPI, Docker, pytest
 
@@ -21,6 +21,20 @@ Test period: 1 September 2025 to 1 September 2026 (17,566 half-hours never seen 
 |---|---|
 | Typical weekday (26 August 2026) | 2.62% |
 | Christmas Day 2025 | 13.52% |
+
+### Prediction intervals
+
+Three LightGBM quantile models (q10, q50, q90) give an 80% prediction interval around each forecast. A well calibrated 80% interval should contain about 80% of actual values, with about 10% falling below and 10% above.
+
+| Intervals | Coverage | Below | Above | Average width |
+|---|---|---|---|---|
+| Raw quantile models | 51.3% | 20.7% | 28.0% | 2,466 MW |
+| Conformally calibrated | 75.8% | 11.2% | 13.0% | 3,969 MW |
+| **Calibrated, models retrained on full training period** | **81.5%** | **9.4%** | **9.1%** | **4,195 MW** |
+
+The raw quantile models were overconfident, covering only half of actual values. Conformal calibration (see below) widened each interval by 752 MW, bringing coverage to the 80% target with misses balanced on both sides.
+
+The intervals also adapt to the time of day: they are narrowest overnight (around 3,000 MW) and widest around midday (up to around 6,000 MW), showing the uncertainty from solar identified in the error analysis.
 
 ### Error analysis
 
@@ -46,6 +60,7 @@ python src/validate.py      # check data quality
 python src/preprocess.py    # clean, align and join
 python src/features.py      # build model features
 python src/train.py         # train and compare with the baseline
+python src/quantiles.py     # train and calibrate the prediction intervals
 ```
 
 On macOS, LightGBM needs OpenMP first: `brew install libomp`
@@ -78,7 +93,7 @@ pytest
 | Endpoint | Description |
 |---|---|
 | `GET /health` | Returns `{"status": "ok"}` if the service is running |
-| `GET /predict?day=YYYY-MM-DD` | Half-hourly forecast and actual demand for that day, with the day's MAE and MAPE |
+| `GET /predict?day=YYYY-MM-DD` | Half-hourly forecast, 80% preditcion interval and actual demand for that day, with the day's MAE and MAPE |
 
 Example response (trimmed):
 
@@ -88,8 +103,9 @@ Example response (trimmed):
   "in_training_data": false,
   "mae": 656,
   "mape": 2.62,
+  "interval": "80%",
   "forecast": [
-    {"timestamp_utc": "2026-08-25T23:00:00", "forecast": 21673, "actual": 22284}
+    {"timestamp_utc": "2026-08-25T23:00:00", "low": 20175, "forecast": 21673, "high": 22963, "actual": 22284}
   ]
 }
 ```
@@ -112,8 +128,9 @@ A single day can also be forecast from the command line: `python src/predict.py 
 | Preprocess | `src/preprocess.py` | Converts to UTC, fills gaps, resamples weather to half hourly, joins the sources |
 | Features | `src/features.py` | Builds calendar, weather and lag features |
 | Train | `src/train.py` | Trains LightGBM with a time based split and compares it with the baseline |
-| Evaluate | `src/evaluate.py` | MAE, RMSE and MAPE |
-| Predict | `src/predict.py` | Loads the saved model and forecasts a chosen day |
+| Quantiles | `src/quantiles.py` | Trains q10/q50/q90 models and calibrates the prediction intervals |
+| Evaluate | `src/evaluate.py` | MAE, RMSE, MAPE and quantile loss |
+| Predict | `src/predict.py` | Loads the saved models and forecasts a chosen day with interval |
 | Serve | `api/main.py` | FastAPI service, packaged with the `Dockerfile` |
 | Test | `tests/` | Unit tests for metrics and features, plus API tests |
 
@@ -147,6 +164,8 @@ Wind speed was dropped because it had almost no correlation with demand (0.03).
 
 **Time-based split.** Training data ends on 31 August 2025 and testing starts on 1 September 2025, so the model is never trained on data from after the period it's tested on.
 
+**Conformal calibration of the intervals.** Quantile models learn their spread from training data they fit closely, so their intervals come out too narrow on new data. To correct this, the quantile models were first trained on data up to August 2024 and evaluated on a held out calibration year (September 2024 to August 2025). The amount by which actual values fell outside their intervals gave a 752 MW adjustment, the widening needed for 80% of calibration values to fall inside. The final models were retrained on the full training period and the same adjustment applied.
+
 **Timezones.** Timestamps are stored in UTC to avoid duplicate and missing hours at the clock changes. Calendar features use UK local time, because that's when people actually use electricity.
 
 ---
@@ -158,11 +177,12 @@ Wind speed was dropped because it had almost no correlation with demand (0.03).
 - Holidays follow the England and Wales calendar; Scotland and Northern Ireland differ.
 - The API replays past days from stored features. Live forecasting, which needs the latest demand data and weather forecasts, is planned as part of scheduled retraining.
 - The feature data is stored inside the Docker image; a database is planned.
+- Interval coverage holds over the test year as a whole, not on every day, so easy days are covered more often and unusual days (such as Christmas) less often. The choice to apply the calibration to retrained models was checked once against the test set.
 
 ## Future Roadmap
 
-- Probabilistic (quantile) forecasts
 - System price forecasting and a price spike classifier
+Battery trading backtest
 - CI with GitHub Actions
 - PostgreSQL storage
 - Scheduled retraining

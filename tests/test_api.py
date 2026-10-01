@@ -14,6 +14,8 @@ def test_predict_returns_a_full_day():
     body = response.json()
     assert len(body["forecast"]) == 48
     assert body["in_training_data"] is False
+    for row in body["forecast"]:
+        assert row["low"] <= row["forecast"] <= row["high"]
 
 def test_predict_unknown_date_gives_404():
     response = client.get("/predict", params={"day": "2030-01-01"})
