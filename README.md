@@ -1,8 +1,9 @@
-# UK Electricity Demand Forecasting Pipeline
+# UK Electricity Market Forecasting Pipeline
 
-An end to end machine learning pipeline that forecasts Great Britain's half hourly electricity demand one day ahead, from raw public data to a tested, containerised API.
+An end to end machine learning pipeline that forecasts Great Britain's half hourly electricity demand and price one day ahead, from raw public data to a tested, containerised API.
 
-**LightGBM day-ahead model: 5.05% MAPE, about 40% lower error than a same-time-last-week baseline (8.40%), with 80% prediction intervals achieving 81.5% coverage.**
+- **Demand: LightGBM day ahead model: 5.05% MAPE, about 40% lower error than a same-time-last-week baseline (8.40%), with 80% prediction intervals achieving 81.5% coverage.**
+- **Price: LightGBM model with £21.50/MWh MAE, 15% lower than the best naive baseline, using wind, solar and net demand to forecast cheap and expensive periods.**
 
 **Stack:** Python, pandas, LightGBM, FastAPI, Docker, pytest
 
@@ -12,19 +13,21 @@ An end to end machine learning pipeline that forecasts Great Britain's half hour
 
 Test period: 1 September 2025 to 1 September 2026 (17,566 half-hours never seen in training).
 
+### Demand forecast
+
 | Model | MAE | RMSE | MAPE |
 |---|---|---|---|
-| Naive baseline (same time last week) | 2132 MW | 2878 MW | 8.40% |
-| **LightGBM** | **1247 MW** | **1628 MW** | **5.05%** |
+| Naive baseline (same time last week) | 2,132 MW | 2,878 MW | 8.40% |
+| **LightGBM** | **1,247 MW** | **1,628 MW** | **5.05%** |
 
 | Day | MAPE |
 |---|---|
 | Typical weekday (26 August 2026) | 2.62% |
 | Christmas Day 2025 | 13.52% |
 
-### Prediction intervals
+### Demand prediction intervals
 
-Three LightGBM quantile models (q10, q50, q90) give an 80% prediction interval around each forecast. A well calibrated 80% interval should contain about 80% of actual values, with about 10% falling below and 10% above.
+Three LightGBM quantile models (q10, q50, q90) give an 80% prediction interval around each demand forecast. A well calibrated 80% interval should contain about 80% of actual values, with about 10% falling below and 10% above.
 
 | Intervals | Coverage | Below | Above | Average width |
 |---|---|---|---|---|
@@ -32,9 +35,27 @@ Three LightGBM quantile models (q10, q50, q90) give an 80% prediction interval a
 | Conformally calibrated | 75.8% | 11.2% | 13.0% | 3,969 MW |
 | **Calibrated, models retrained on full training period** | **81.5%** | **9.4%** | **9.1%** | **4,195 MW** |
 
-The raw quantile models were overconfident, covering only half of actual values. Conformal calibration (see below) widened each interval by 752 MW, bringing coverage to the 80% target with misses balanced on both sides.
+The raw quantile models were overconfident, covering only half of actual values. Calibration widened each interval by 752 MW, bringing coverage to the 80% target with misses balanced on both sides. The intervals also adapt to the time of day: they are narrowest overnight (around 3,000 MW) and widest around midday (up to around 6,000 MW).
 
-The intervals also adapt to the time of day: they are narrowest overnight (around 3,000 MW) and widest around midday (up to around 6,000 MW), showing the uncertainty from solar identified in the error analysis.
+### Price forecast
+
+The target is the Market Index Price, the half hourly price of electricity traded in the short term market. Prices can be negative, so models are scored on MAE and RMSE in £/MWh rather than MAPE.
+
+| Model | MAE | RMSE |
+|---|---|---|
+| Naive baseline: same time last week | £27.57 | £41.25 |
+| Naive baseline: most recent known day | £25.25 | £39.22 |
+| **LightGBM** | **£21.50** | **£29.45** |
+
+LightGBM is 15% better than the stronger baseline on MAE and 25% better on RMSE. The larger RMSE improvement means it mostly avoids the big misses the baselines make, by seeing windy, cheap periods and tight, expensive ones coming.
+
+**Feature selection on a validation year.** The first price model relied heavily on `dayofyear`. Unlike demand, price levels drift between years with gas prices (around £150/MWh in early 2023, around £70 in 2024, rising again through 2026), so seasonal patterns learned from past years don't generalise. Comparing feature sets on a held-out validation year (September 2024 to August 2025), removing `dayofyear` improved MAE from £18.57 to £17.12 (7.8%). That version was chosen before the test set was evaluated, then tested once.
+
+### What the data shows about prices
+
+- **Daily shape:** an evening peak at 6–7pm UK time (about £112/MWh on average), a smaller morning peak, an overnight dip (about £69), and a midday dip (about £74) caused by solar.
+- **Fat tails:** the middle half of prices sits between £68 and £104/MWh, but prices ranged from −£102.92 to £1,352.90.
+- **Negative prices** occurred in 1,684 half hours (2.6%), clustered around midday from solar and overnight on windy nights with low demand, and concentrated between April and September. They almost never occur during the evening peak.
 
 ### Error analysis
 
@@ -55,12 +76,14 @@ python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-python src/ingest.py        # download demand and weather data
-python src/validate.py      # check data quality
-python src/preprocess.py    # clean, align and join
-python src/features.py      # build model features
-python src/train.py         # train and compare with the baseline
-python src/quantiles.py     # train and calibrate the prediction intervals
+python src/ingest.py           # download demand and weather data
+python src/validate.py         # check data quality
+python src/preprocess.py       # clean, align and join
+python src/features.py         # build model features
+python src/train.py            # train and compare with the baseline
+python src/quantiles.py        # train and calibrate the prediction intervals
+python src/price_features.py   # build price features
+python src/train_price.py      # select features, train the price model, compare with baselines
 ```
 
 On macOS, LightGBM needs OpenMP first: `brew install libomp`
@@ -129,6 +152,8 @@ A single day can also be forecast from the command line: `python src/predict.py 
 | Features | `src/features.py` | Builds calendar, weather and lag features |
 | Train | `src/train.py` | Trains LightGBM with a time based split and compares it with the baseline |
 | Quantiles | `src/quantiles.py` | Trains q10/q50/q90 models and calibrates the prediction intervals |
+| Price features | `src/price_features.py` | Adds wind, solar, net demand and price lag features |
+| Price model | `src/train_price.py` | Selects features on a validation year, trains LightGBM and compares it with two baselines |
 | Evaluate | `src/evaluate.py` | MAE, RMSE, MAPE and quantile loss |
 | Predict | `src/predict.py` | Loads the saved models and forecasts a chosen day with interval |
 | Serve | `api/main.py` | FastAPI service, packaged with the `Dockerfile` |
@@ -138,6 +163,8 @@ A single day can also be forecast from the command line: `python src/predict.py 
 
 - **Demand:** initial national demand outturn from the Elexon BMRS API, half hourly, January 2023 to September 2026 (64,316 settlement periods).
 - **Weather:** hourly temperature, wind speed and shortwave radiation for London from the Open Meteo historical archive, interpolated to half hourly.
+- **Prices:** Market Index Price (APX/EPEX) from the Elexon BMRS API. Six missing half hours and 34 half hours with zero traded volume were filled by interpolation.
+- **Wind and solar generation:** actual onshore wind, offshore wind and solar generation from the Elexon BMRS API. 4,383 republished duplicate rows were removed (keeping the latest version), 863 missing half-hours (longest gap 7 hours) were filled by interpolation, and 15 small negative values were set to zero.
 
 Validation found two days each missing one settlement period (2023-07-17 period 45 and 2023-12-29 period 8), which were filled by time interpolation.
 
@@ -158,6 +185,19 @@ Validation found two days each missing one settlement period (2023-07-17 period 
 
 Wind speed was dropped because it had almost no correlation with demand (0.03).
 
+### Price features
+
+The price model uses the demand, weather and calendar features (without `dayofyear`) plus:
+
+| Feature | Description |
+|---|---|
+| `wind_onshore`, `wind_offshore`, `wind_total` | Wind generation (MW) |
+| `solar_generation` | Solar generation (MW) |
+| `net_demand` | Demand minus wind and solar: what's left to be met mostly by gas, which usually sets the price |
+| `price_lag_recent` | Price at the same time yesterday, or two days ago (same rule as demand) |
+| `price_lag_336` | Price at the same time last week |
+| `price_roll_7d` | 7 day average price ending two days earlier, which tells the model the current price level |
+
 ### Design decisions
 
 **A realistic day-ahead forecast.** The forecast for a given day is assumed to be made around 9am the day before, in line with GB day ahead power auctions, which run in the morning. At that point, yesterday's demand is only known up to about 8am. So `demand_lag_recent` uses lag 48 (yesterday) for periods before 8am local time and lag 96 (two days ago) from 8am onwards. Using lag 48 everywhere would quietly use data a real forecaster wouldn't have yet. A unit test enforces this rule, and the rolling average is shifted by 96 periods for the same reason.
@@ -167,6 +207,10 @@ Wind speed was dropped because it had almost no correlation with demand (0.03).
 **Conformal calibration of the intervals.** Quantile models learn their spread from training data they fit closely, so their intervals come out too narrow on new data. To correct this, the quantile models were first trained on data up to August 2024 and evaluated on a held out calibration year (September 2024 to August 2025). The amount by which actual values fell outside their intervals gave a 752 MW adjustment, the widening needed for 80% of calibration values to fall inside. The final models were retrained on the full training period and the same adjustment applied.
 
 **Timezones.** Timestamps are stored in UTC to avoid duplicate and missing hours at the clock changes. Calendar features use UK local time, because that's when people actually use electricity.
+
+**Net demand for prices.** Prices are set by supply and demand together. Low demand alone doesn't explain negative prices (overnight demand is low every night, but prices go negative on only a small share of nights), whereas low demand combined with high wind or solar does. Net demand captures this directly.
+
+**Separate market data.** Prices and generation are stored in their own processed file, so adding them didn't change the demand pipeline or its results.
 
 ---
 
@@ -178,11 +222,13 @@ Wind speed was dropped because it had almost no correlation with demand (0.03).
 - The API replays past days from stored features. Live forecasting, which needs the latest demand data and weather forecasts, is planned as part of scheduled retraining.
 - The feature data is stored inside the Docker image; a database is planned.
 - Interval coverage holds over the test year as a whole, not on every day, so easy days are covered more often and unusual days (such as Christmas) less often. The choice to apply the calibration to retrained models was checked once against the test set.
+- The price model has no gas price input, although gas usually sets GB power prices. The 7-day average price captures its effect only indirectly.
+- Half hourly prices are noisy, and extreme spikes and negative prices remain hard to predict.
 
 ## Future Roadmap
 
-- System price forecasting and a price spike classifier
-Battery trading backtest
+- Price spike classifier
+- Battery trading backtest
 - CI with GitHub Actions
 - PostgreSQL storage
 - Scheduled retraining

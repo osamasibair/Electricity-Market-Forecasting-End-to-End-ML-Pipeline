@@ -26,6 +26,31 @@ def load_weather():
     df.index.name = "timestamp"
     return df
 
+def load_prices():
+    df = pd.read_csv(raw / "prices.csv", parse_dates=["startTime"])
+    df["startTime"] = df["startTime"].dt.tz_convert("UTC").dt.tz_localize(None)
+    df.loc[df["volume"] == 0, "price"] = None
+    df = df[["startTime", "price"]].set_index("startTime").sort_index()
+    full = pd.date_range(df.index.min(), df.index.max(), freq="30min")
+    df = df.reindex(full)
+    df["price"] = df["price"].interpolate(method="time")
+    df.index.name = "timestamp"
+    return df
+
+def load_generation():
+    df = pd.read_csv(raw / "generation.csv", parse_dates=["startTime", "publishTime"])
+    df = df.sort_values("publishTime").drop_duplicates(["startTime", "psrType"], keep="last")
+    df["startTime"] = df["startTime"].dt.tz_convert("UTC").dt.tz_localize(None)
+    df = df.pivot(index="startTime", columns="psrType", values="quantity")
+    df = df.rename(columns={"Wind Onshore": "wind_onshore", "Wind Offshore": "wind_offshore", "Solar": "solar_generation"})
+    df.columns.name = None
+    df = df.clip(lower=0)
+    full = pd.date_range(df.index.min(), df.index.max(), freq="30min")
+    df = df.reindex(full).interpolate(method="time")
+    df.index.name = "timestamp"
+    return df
+
+
 if __name__ == "__main__":
     demand = load_demand()
     weather = load_weather()
@@ -35,4 +60,8 @@ if __name__ == "__main__":
     processed.mkdir(parents=True, exist_ok=True)
     df.to_csv(processed / "dataset.csv")
 
+    market = load_prices().join(load_generation(), how="inner")
+    print(f"market: {len(market)} rows, {market.isna().sum().sum()} nulls")
+    print(market.head())
+    market.to_csv(processed / "market.csv")
 
