@@ -4,6 +4,7 @@ An end to end machine learning pipeline that forecasts Great Britain's half hour
 
 - **Demand: LightGBM day ahead model: 5.05% MAPE, about 40% lower error than a same-time-last-week baseline (8.40%), with 80% prediction intervals achieving 81.5% coverage.**
 - **Price: LightGBM model with £21.50/MWh MAE, 15% lower than the best naive baseline, using wind, solar and net demand to forecast cheap and expensive periods.**
+- **Spikes: LightGBM classifier that ranks spike risk 2.5x better than persistence (average precision 0.43 vs 0.17, ROC AUC 0.90).**
 
 **Stack:** Python, pandas, LightGBM, FastAPI, Docker, pytest
 
@@ -51,6 +52,28 @@ LightGBM is 15% better than the stronger baseline on MAE and 25% better on RMSE.
 
 **Feature selection on a validation year.** The first price model relied heavily on `dayofyear`. Unlike demand, price levels drift between years with gas prices (around £150/MWh in early 2023, around £70 in 2024, rising again through 2026), so seasonal patterns learned from past years don't generalise. Comparing feature sets on a held-out validation year (September 2024 to August 2025), removing `dayofyear` improved MAE from £18.57 to £17.12 (7.8%). That version was chosen before the test set was evaluated, then tested once.
 
+### Price spike classifier
+
+A spike is defined relative to the recent price level: **a price more than £43.72/MWh above its own 7 day average**. The threshold was set so that 5% of training half-hours count as spikes, using training data only. The test year was more volatile, with 6.3% spikes.
+
+The baseline is persistence: predict a spike if the most recent known price at that time was itself spike-level.
+
+| Model | Precision | Recall | F1 | Average precision |
+|---|---|---|---|---|
+| Random guessing | — | — | — | 0.063 |
+| Persistence | 0.39 | 0.33 | 0.36 | 0.170 |
+| LightGBM, 0.5 cut-off | 0.75 | 0.12 | 0.21 | **0.428** |
+| LightGBM, cut-off chosen on validation (0.30) | 0.59 | 0.19 | 0.29 | **0.428** |
+
+ROC AUC: 0.899.
+
+- **The classifier ranks risk far better than persistence.** Its average precision, which scores the probabilities across every possible cut off, is 2.5 times persistence's and nearly 7 times random guessing.
+- **Its alarms are more precise:** 59% of half hours it flags are real spikes, against 39% for persistence.
+- **At a single cut off it catches fewer spikes:** Persistence scores a slightly higher F1. The cut off was chosen on the validation year, and the more volatile test year needed a less cautious one. It was not retuned on the test set.
+- The battery backtest uses the spike probabilities directly rather than a yes/no cut-off, which is where the classifier's ranking ability matters.
+
+**Feature choice:** Tree models split on one feature at a time, so they can't easily compute the difference between two features. Adding `price_excess_recent` (the most recent known price minus its 7 day average, persistence's own signal) raised validation average precision from 0.405 to 0.412 and was kept.
+
 ### What the data shows about prices
 
 - **Daily shape:** an evening peak at 6–7pm UK time (about £112/MWh on average), a smaller morning peak, an overnight dip (about £69), and a midday dip (about £74) caused by solar.
@@ -84,6 +107,7 @@ python src/train.py            # train and compare with the baseline
 python src/quantiles.py        # train and calibrate the prediction intervals
 python src/price_features.py   # build price features
 python src/train_price.py      # select features, train the price model, compare with baselines
+python src/spikes.py           # train the spike classifier and choose its cut off
 ```
 
 On macOS, LightGBM needs OpenMP first: `brew install libomp`
@@ -154,6 +178,7 @@ A single day can also be forecast from the command line: `python src/predict.py 
 | Quantiles | `src/quantiles.py` | Trains q10/q50/q90 models and calibrates the prediction intervals |
 | Price features | `src/price_features.py` | Adds wind, solar, net demand and price lag features |
 | Price model | `src/train_price.py` | Selects features on a validation year, trains LightGBM and compares it with two baselines |
+| Spikes | `src/spikes.py` | Labels price spikes, selects features and a probability cut-off on a validation year, and compares the classifier with persistence |
 | Evaluate | `src/evaluate.py` | MAE, RMSE, MAPE and quantile loss |
 | Predict | `src/predict.py` | Loads the saved models and forecasts a chosen day with interval |
 | Serve | `api/main.py` | FastAPI service, packaged with the `Dockerfile` |
@@ -212,6 +237,8 @@ The price model uses the demand, weather and calendar features (without `dayofye
 
 **Separate market data.** Prices and generation are stored in their own processed file, so adding them didn't change the demand pipeline or its results.
 
+**Spikes relative to the recent level.** Price levels drift by a factor of two between years, so a fixed threshold such as "above £150/MWh" would label most of early 2023 as spikes and almost nothing in 2024, and the classifier would simply learn which periods were expensive. Defining a spike as a jump above the recent 7 day average captures sudden, unusual prices whatever the current level.
+
 ---
 
 ## Limitations
@@ -224,10 +251,10 @@ The price model uses the demand, weather and calendar features (without `dayofye
 - Interval coverage holds over the test year as a whole, not on every day, so easy days are covered more often and unusual days (such as Christmas) less often. The choice to apply the calibration to retrained models was checked once against the test set.
 - The price model has no gas price input, although gas usually sets GB power prices. The 7-day average price captures its effect only indirectly.
 - Half hourly prices are noisy, and extreme spikes and negative prices remain hard to predict.
+- A spike probability cut off chosen on one year transfers imperfectly to a more volatile year, in practice it would need recalibrating regularly.
 
 ## Future Roadmap
 
-- Price spike classifier
 - Battery trading backtest
 - CI with GitHub Actions
 - PostgreSQL storage
