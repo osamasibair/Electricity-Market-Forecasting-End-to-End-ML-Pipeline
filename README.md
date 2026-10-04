@@ -1,12 +1,13 @@
-# UK Electricity Market Forecasting Pipeline
+# UK Electricity Market Forecasting End to End ML Pipeline
 
-An end to end machine learning pipeline that forecasts Great Britain's half hourly electricity demand and price one day ahead, from raw public data to a tested, containerised API.
+An end to end machine learning pipeline that forecasts Great Britain's half hourly electricity demand and price one day ahead, from raw public data to a tested, containerised API, and backtests a battery trading strategy on the price forecasts.
 
 - **Demand: LightGBM day ahead model: 5.05% MAPE, about 40% lower error than a same-time-last-week baseline (8.40%), with 80% prediction intervals achieving 81.5% coverage.**
 - **Price: LightGBM model with £21.50/MWh MAE, 15% lower than the best naive baseline, using wind, solar and net demand to forecast cheap and expensive periods.**
 - **Spikes: LightGBM classifier that ranks spike risk 2.5x better than persistence (average precision 0.43 vs 0.17, ROC AUC 0.90).**
+- **Backtest: a simulated 1 MW / 2 MWh battery scheduled from the price forecast earns 77% of the perfect foresight profit, against 52% for a baseline forecast and 74% for a simple average of the last 7 days prices.**
 
-**Stack:** Python, pandas, LightGBM, FastAPI, Docker, pytest
+**Stack:** Python, pandas, LightGBM, FastAPI, Docker, pytest, SciPy
 
 ---
 
@@ -70,9 +71,28 @@ ROC AUC: 0.899.
 - **The classifier ranks risk far better than persistence.** Its average precision, which scores the probabilities across every possible cut off, is 2.5 times persistence's and nearly 7 times random guessing.
 - **Its alarms are more precise:** 59% of half hours it flags are real spikes, against 39% for persistence.
 - **At a single cut off it catches fewer spikes:** Persistence scores a slightly higher F1. The cut off was chosen on the validation year, and the more volatile test year needed a less cautious one. It was not retuned on the test set.
-- The battery backtest uses the spike probabilities directly rather than a yes/no cut-off, which is where the classifier's ranking ability matters.
+- In the battery backtest below, using the spike probabilities to adjust the price forecast added no profit. The classifier ranks risk well, but its signal doesn't change one cycle a day trading decisions.
 
 **Feature choice:** Tree models split on one feature at a time, so they can't easily compute the difference between two features. Adding `price_excess_recent` (the most recent known price minus its 7 day average, persistence's own signal) raised validation average precision from 0.405 to 0.412 and was kept.
+
+### Battery trading backtest
+
+Does a more accurate forecast actually make more money? A simulated battery plans each day's charging and discharging from a price forecast, using linear programming to find the most profitable schedule, and the plan is then scored on the real prices.
+
+**Battery:** 1 MW power, 2 MWh storage, 90% round-trip efficiency, at most one full cycle a day, each day starting empty.
+
+| Strategy | Forecast used to plan | Profit over test year | Share of perfect foresight | Losing days |
+|---|---|---|---|---|
+| Perfect foresight | Real prices (upper limit) | £42,937 | 100.0% | 0 |
+| LightGBM | Price model | **£33,095** | **77.1%** | 17 |
+| LightGBM + spike model | Price model, raised to the spike level where spike probability passes the cut-off | £33,048 | 77.0% | 16 |
+| 7-day average | Average price at the same half-hour over the last 7 known days | £31,872 | 74.2% | 24 |
+| Recent day | Most recent known price at each half hour | £22,377 | 52.1% | 45 |
+
+- **The forecast is worth real money:** about £10,700 a year more than the recent day forecast (+48%), with far fewer losing days.
+- **Most of the value comes from the daily shape.** Simply averaging the last 7 days prices captures 74%. A battery only needs to know when prices are low and high, not their exact level, so LightGBM's accuracy advantage turns into only about £1,200 (4%) more profit than the 7 day average.
+- **The spike model doesnt change the outcome.**
+- **The LightGBM result is an upper bound.** The price model uses actual wind, solar and demand rather than forecasts, so with real inputs its small lead over the 7 day average could shrink. The 7 day average uses only past prices, so its result is fully realistic.
 
 ### What the data shows about prices
 
@@ -108,6 +128,7 @@ python src/quantiles.py        # train and calibrate the prediction intervals
 python src/price_features.py   # build price features
 python src/train_price.py      # select features, train the price model, compare with baselines
 python src/spikes.py           # train the spike classifier and choose its cut off
+python src/battery_backtest.py          # backtest battery trading strategies on the test year
 ```
 
 On macOS, LightGBM needs OpenMP first: `brew install libomp`
@@ -179,10 +200,11 @@ A single day can also be forecast from the command line: `python src/predict.py 
 | Price features | `src/price_features.py` | Adds wind, solar, net demand and price lag features |
 | Price model | `src/train_price.py` | Selects features on a validation year, trains LightGBM and compares it with two baselines |
 | Spikes | `src/spikes.py` | Labels price spikes, selects features and a probability cut-off on a validation year, and compares the classifier with persistence |
+| Backtest | `src/battery_backtest.py` | Plans each day's battery schedule from a price forecast with linear programming and scores it on real prices over the test year |
 | Evaluate | `src/evaluate.py` | MAE, RMSE, MAPE and quantile loss |
 | Predict | `src/predict.py` | Loads the saved models and forecasts a chosen day with interval |
 | Serve | `api/main.py` | FastAPI service, packaged with the `Dockerfile` |
-| Test | `tests/` | Unit tests for metrics and features, plus API tests |
+| Test | `tests/` | Unit tests for metrics, features, the spike definition and the battery, plus API tests |
 
 ### Data
 
@@ -255,7 +277,6 @@ The price model uses the demand, weather and calendar features (without `dayofye
 
 ## Future Roadmap
 
-- Battery trading backtest
 - CI with GitHub Actions
 - PostgreSQL storage
 - Scheduled retraining
