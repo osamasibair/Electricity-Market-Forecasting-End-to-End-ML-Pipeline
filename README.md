@@ -37,7 +37,7 @@ Three LightGBM quantile models (q10, q50, q90) give an 80% prediction interval a
 |---|---|---|---|---|
 | Raw quantile models | 51.3% | 20.7% | 28.0% | 2,466 MW |
 | Conformally calibrated | 75.8% | 11.2% | 13.0% | 3,969 MW |
-| **Calibrated, models retrained on full training period** | **81.9%** | **9.4%** | **9.1%** | **4,195 MW** |
+| **Calibrated, models retrained on full training period** | **81.9%** | **9.3%** | **8.8%** | **4,204 MW** |
 
 The raw quantile models were overconfident, covering only half of actual values. Calibration widened each interval by 758 MW, bringing coverage to the 80% target with misses balanced on both sides. The intervals also adapt to the time of day: they are narrowest overnight (around 3,000 MW) and widest around midday (up to around 6,000 MW).
 
@@ -283,7 +283,7 @@ The price model uses the demand, weather and calendar features (without `dayofye
 - The test period uses actual weather, not weather forecasts, so live performance would be somewhat worse.
 - Weather comes from London only, while national demand depends on weather across Great Britain, especially for solar.
 - Holidays follow the England and Wales calendar; Scotland and Northern Ireland differ.
-- The API replays past days from stored features. Live forecasting, which needs the latest demand data and weather forecasts, is planned as part of scheduled retraining.
+- The API replays past days from stored features. Live forecasting, which needs the latest demand data and weather forecasts, is planned as part of cloud deployment.
 - The feature data is stored inside the Docker image; a database is planned.
 - Interval coverage holds over the test year as a whole, not on every day, so easy days are covered more often and unusual days (such as Christmas) less often. The choice to apply the calibration to retrained models was checked once against the test set.
 - The price model has no gas price input, although gas usually sets GB power prices. The 7-day average price captures its effect only indirectly.
