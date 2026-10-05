@@ -5,7 +5,7 @@ import pandas as pd
 from sqlalchemy import create_engine
 
 database_url = os.environ.get("DATABASE_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/electricity")
-engine = create_engine(database_url)
+engine = create_engine(database_url, pool_pre_ping=True)
 
 
 def save_table(df, name):
