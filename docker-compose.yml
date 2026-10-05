@@ -39,6 +39,17 @@ services:
     depends_on:
       db:
         condition: service_healthy
+  
+  dashboard:
+    build: .
+    command: streamlit run dashboard/app.py --server.address 0.0.0.0 --server.port 8501 --server.headless true
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/electricity
+    ports:
+      - "8501:8501"
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   pgdata:

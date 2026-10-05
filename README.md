@@ -9,7 +9,7 @@ An end to end machine learning pipeline that forecasts Great Britain's half hour
 - **Spikes: LightGBM classifier that ranks spike risk 2.5x better than persistence (average precision 0.43 vs 0.17, ROC AUC 0.90).**
 - **Backtest: a simulated 1 MW / 2 MWh battery scheduled from the price forecast earns 77% of the perfect foresight profit, against 52% for a baseline forecast and 74% for a simple average of the last 7 days prices.**
 
-**Stack:** Python, pandas, LightGBM, FastAPI, Docker, pytest, SciPy, Ruff, GitHub Actions, PostgreSQL, SQLAlchemy, Docker Compose, MLFlow.
+**Stack:** Python, pandas, LightGBM, FastAPI, Docker, pytest, SciPy, Ruff, GitHub Actions, PostgreSQL, SQLAlchemy, Docker Compose, MLFlow, Streamlit.
 
 ---
 
@@ -96,6 +96,14 @@ Does a more accurate forecast actually make more money? A simulated battery plan
 - **The spike model doesnt change the outcome.**
 - **The LightGBM result is an upper bound.** The price model uses actual wind, solar and demand rather than forecasts, so with real inputs its small lead over the 7 day average could shrink. The 7 day average uses only past prices, so its result is fully realistic.
 
+### Monitoring
+
+The demand model was replayed over the test year day by day, as if each day had just arrived, and scored on accuracy, interval coverage and input drift (`src/monitor.py`, shown on the Streamlit dashboard).
+
+- **Interval coverage** stayed near or above the 80% target for most of the year, but the 30 day coverage fell below 70% on 12 days, all over Christmas and New Year (lowest about 66% in mid January). Coverage holds over the year as a whole, not in every period.
+- **Accuracy** was no better than the same time last week baseline (7 day average) on 26 days, in three spells: 2 January, 31 January to 9 February, and 18 July to 4 August. The July spell coincides with the largest input drift of the year: temperature in July 2026 differed sharply from the training years Julys (PSI 0.97), giving the model weather it had seen little of.
+- **Input drift:** sunshine and recent demand stayed stable or moderate (PSI up to 0.13 and 0.20, the latter over Christmas), but temperature shifted by more than 0.25 in half the months, because weather comes in spells lasting days or weeks.
+
 ### What the data shows about prices
 
 - **Daily shape:** an evening peak at 6–7pm UK time (about £112/MWh on average), a smaller morning peak, an overnight dip (about £69), and a midday dip (about £74) caused by solar.
@@ -133,17 +141,20 @@ python src/quantiles.py        # train and calibrate the prediction intervals
 python src/price_features.py   # build price features
 python src/train_price.py      # select features, train the price model, compare with baselines
 python src/spikes.py           # train the spike classifier and choose its cut off
-python src/battery_backtest.py          # backtest battery trading strategies on the test year
+python src/battery_backtest.py # backtest battery trading strategies on the test year
+python src/monitor.py          # replay the test year and save the monitoring tables
 ```
 
 Each training script logs its settings, results and model to MLflow. Open `http://localhost:5001` to browse and compare runs, and to see model versions.
 On macOS, LightGBM needs OpenMP first: `brew install libomp`
 
-**2. Serve forecasts**, with the API and database together in Docker Compose:
+**2. Serve forecasts and the dashboard**, with Docker Compose:
 
 ```bash
 docker compose up --build
 ```
+
+This starts the database, the API (`http://localhost:8000/docs`), the monitoring dashboard (`http://localhost:8501`) and MLflow (`http://localhost:5001`).
 
 or locally, with the database already running:
 
@@ -211,12 +222,14 @@ A single day can also be forecast from the command line: `python src/predict.py 
 | Price model | `src/train_price.py` | Selects features on a validation year, trains LightGBM and compares it with two baselines |
 | Spikes | `src/spikes.py` | Labels price spikes, selects features and a probability cut-off on a validation year, and compares the classifier with persistence |
 | Backtest | `src/battery_backtest.py` | Plans each day's battery schedule from a price forecast with linear programming and scores it on real prices over the test year |
+| Monitor | `src/monitor.py` | Replays the test year day by day: daily error against the baseline, interval coverage and monthly input drift, saved to PostgreSQL |
+| Dashboard | `dashboard/app.py` | Streamlit dashboard of accuracy, coverage, drift and data freshness, with alerts |
 | Evaluate | `src/evaluate.py` | MAE, RMSE, MAPE and quantile loss |
 | Tracking | `src/tracking.py` | Logs each training runs settings, metrics and model files to MLflow, and registers the demand, price and spike models |
 | Predict | `src/predict.py` | Loads the saved models and forecasts a chosen day with interval |
 | Serve | `api/main.py` | FastAPI service, packaged with the `Dockerfile` and run alongside PostgreSQL with `docker-compose.yml` |
-| Test | `tests/` | Unit tests for metrics, features, the spike definition, the battery, and the database, plus API tests |
-| CI | `.github/workflows/tests.yml` | Lints, starts PostgreSQL, runs the tests with coverage, and builds and starts the Docker image on every push |
+| Test | `tests/` | Unit tests for metrics, features, the spike definition, the battery, the monitoring, and the database, plus API tests |
+| CI | `.github/workflows/tests.yml` | Lints, starts PostgreSQL, runs the tests with coverage, and starts the API and dashboard with Docker Compose on every push |
 | Scheduled retraining | `.github/workflows/retrain.yml` | Every Monday, downloads the latest data, rebuilds the features and runs the retraining, saving the new models as downloadable |
 
 ### Data
@@ -281,6 +294,8 @@ The price model uses the demand, weather and calendar features (without `dayofye
 
 **Experiment tracking with MLflow.** Every training run records its settings, metrics and model files in MLflow, so results can be compared across runs and any past model can be recovered exactly. The demand, price and spike models are registered as numbered versions. The MLflow server runs in Docker Compose, storing its records in a separate PostgreSQL database and its model files in a Docker volume.
 
+**Monitoring alerts on performance, not on drift alone.** Input drift is measured with the population stability index against the same calendar month in the training years, because comparing a summer month with a whole training year would flag every season as drift. Even so, temperature shifts by more than 0.25 in half the months, since a single month holds only a handful of weather spells, so a drift alert would fire constantly and be ignored. Alerts are therefore based on accuracy (7 day error no better than the baseline), interval coverage (30 day coverage below 70%) and data freshness, and drift is shown as a likely explanation when accuracy drops, as it did in July 2026.
+
 ---
 
 ## Limitations
@@ -294,10 +309,10 @@ The price model uses the demand, weather and calendar features (without `dayofye
 - The price model has no gas price input, although gas usually sets GB power prices. The 7-day average price captures its effect only indirectly.
 - Half hourly prices are noisy, and extreme spikes and negative prices remain hard to predict.
 - A spike probability cut off chosen on one year transfers imperfectly to a more volatile year, in practice it would need recalibrating regularly.
+- Monitoring replays the stored test year. On live data it would run after each days actual demand arrives, which is planned as part of cloud deployment.
 
 ## Future Roadmap
 
-- Monitoring dashboard
 - Cloud deployment
 
 ---
