@@ -1,0 +1,39 @@
+name: Retrain
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+      - name: Start the database
+        run: docker compose up -d --wait db
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Use data up to a week ago
+        run: echo "DATA_END=$(date -u -d '7 days ago' +%F)" >> "$GITHUB_ENV"
+      - name: Download the latest data
+        run: python src/ingest.py
+      - name: Validate
+        run: python src/validate.py
+      - name: Preprocess
+        run: python src/preprocess.py
+      - name: Build features
+        run: python src/features.py
+      - name: Retrain and check
+        run: python src/retrain.py
+      - name: Save the new models
+        uses: actions/upload-artifact@v7
+        with:
+          name: demand-models
+          path: models/
+          retention-days: 30

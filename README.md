@@ -204,6 +204,7 @@ A single day can also be forecast from the command line: `python src/predict.py 
 | Features | `src/features.py` | Builds calendar, weather and lag features |
 | Train | `src/train.py` | Trains LightGBM with a time based split and compares it with the baseline |
 | Quantiles | `src/quantiles.py` | Trains q10/q50/q90 models and calibrates the prediction intervals |
+| Retrain | `src/retrain.py` | Checks a newly trained model against the baseline on the latest 8 weeks, then retrains the demand and interval models on all data and recalibrates the intervals |
 | Price features | `src/price_features.py` | Adds wind, solar, net demand and price lag features |
 | Price model | `src/train_price.py` | Selects features on a validation year, trains LightGBM and compares it with two baselines |
 | Spikes | `src/spikes.py` | Labels price spikes, selects features and a probability cut-off on a validation year, and compares the classifier with persistence |
@@ -213,6 +214,7 @@ A single day can also be forecast from the command line: `python src/predict.py 
 | Serve | `api/main.py` | FastAPI service, packaged with the `Dockerfile` and run alongside PostgreSQL with `docker-compose.yml` |
 | Test | `tests/` | Unit tests for metrics, features, the spike definition and the battery, plus API tests |
 | CI | `.github/workflows/tests.yml` | Lints, runs the tests with coverage, and builds and starts the Docker image on every push |
+| Scheduled retraining | `.github/workflows/retrain.yml` | Every Monday, downloads the latest data, rebuilds the features and runs the retraining, saving the new models as downloadable |
 
 ### Data
 
@@ -272,6 +274,8 @@ The price model uses the demand, weather and calendar features (without `dayofye
 
 **PostgreSQL for processed data.** Raw downloads stay as CSV files so everything can be rebuilt without calling the APIs again, but every processed table lives in one place, the database, so training, backtesting and the API always read the same data. The connection comes from a `DATABASE_URL` environment variable, so the same code runs on a laptop, inside Docker Compose and in CI.
 
+**Scheduled retraining with a quality gate.** Demand patterns drift as solar capacity grows and behaviour changes, so the models are retrained weekly on the latest data. Before anything is saved, a model trained without the most recent 8 weeks must beat the same time last week baseline on them, otherwise the run fails and the previous models are kept. The interval calibration is recomputed on the same recent weeks. The READMEs results use data up to 1 September 2026 so they stay reproducible, only the retraining workflow fetches newer data.
+
 ---
 
 ## Limitations
@@ -288,7 +292,6 @@ The price model uses the demand, weather and calendar features (without `dayofye
 
 ## Future Roadmap
 
-- Scheduled retraining
 - MLflow experiment tracking
 - Monitoring dashboard
 - Cloud deployment

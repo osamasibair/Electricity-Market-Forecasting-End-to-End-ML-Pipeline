@@ -1,5 +1,6 @@
 """Fetching raw demand and weather data from public APIs."""
 
+import os
 import time
 from pathlib import Path
 
@@ -64,7 +65,7 @@ def fetch_generation(start, end):
     return fetch_weekly(wind_solar, start, end, "generation")
 
 if __name__ == "__main__":
-    start, end = "2023-01-01", "2026-09-01"
+    start, end = "2023-01-01", os.environ.get("DATA_END", "2026-09-01")
     raw.mkdir(parents=True, exist_ok=True)
     if not (raw / "generation.csv").exists():
         fetch_generation(start, end).to_csv(raw / "generation.csv", index=False)
