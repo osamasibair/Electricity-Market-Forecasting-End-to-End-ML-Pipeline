@@ -1,11 +1,12 @@
 from pathlib import Path
 import pytest
-from fastapi.testclient import TestClient
-from api.main import app
 
 needed = [Path("models/model.joblib"), Path("models/quantile_models.joblib"), Path("data/processed/features.csv")]
 if not all(path.exists() for path in needed):
     pytest.skip("trained models and features aren't stored in the repo", allow_module_level=True)
+
+from fastapi.testclient import TestClient
+from api.main import app
 
 client = TestClient(app)
 
