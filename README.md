@@ -1,15 +1,19 @@
 # UK Electricity Market Forecasting End to End ML Pipeline
 
 [![CI](https://github.com/osamasibair/Electricity-Market-Forecasting-End-to-End-ML-Pipeline/actions/workflows/tests.yml/badge.svg)](https://github.com/osamasibair/Electricity-Market-Forecasting-End-to-End-ML-Pipeline/actions/workflows/tests.yml)
+[![Deploy](https://github.com/osamasibair/Electricity-Market-Forecasting-End-to-End-ML-Pipeline/actions/workflows/deploy.yml/badge.svg)](https://github.com/osamasibair/Electricity-Market-Forecasting-End-to-End-ML-Pipeline/actions/workflows/deploy.yml)
+[![Daily forecast](https://github.com/osamasibair/Electricity-Market-Forecasting-End-to-End-ML-Pipeline/actions/workflows/daily.yml/badge.svg)](https://github.com/osamasibair/Electricity-Market-Forecasting-End-to-End-ML-Pipeline/actions/workflows/daily.yml)
 
 An end to end machine learning pipeline that forecasts Great Britain's half hourly electricity demand and price one day ahead, from raw public data to a tested, containerised API, and backtests a battery trading strategy on the price forecasts.
+
+**Live:** [API docs](https://electricity-api-xqiuvbbyca-nw.a.run.app/docs) · [Latest forecast](https://electricity-api-xqiuvbbyca-nw.a.run.app/forecast/latest) · [Monitoring dashboard](https://electricity-dashboard-xqiuvbbyca-nw.a.run.app)
 
 - **Demand: LightGBM day ahead model: 5.03% MAPE, about 40% lower error than a same-time-last-week baseline (8.40%), with 80% prediction intervals achieving 81.9% coverage.**
 - **Price: LightGBM model with £21.50/MWh MAE, 15% lower than the best naive baseline, using wind, solar and net demand to forecast cheap and expensive periods.**
 - **Spikes: LightGBM classifier that ranks spike risk 2.5x better than persistence (average precision 0.43 vs 0.17, ROC AUC 0.90).**
 - **Backtest: a simulated 1 MW / 2 MWh battery scheduled from the price forecast earns 77% of the perfect foresight profit, against 52% for a baseline forecast and 74% for a simple average of the last 7 days prices.**
 
-**Stack:** Python, pandas, LightGBM, FastAPI, Docker, pytest, SciPy, Ruff, GitHub Actions, PostgreSQL, SQLAlchemy, Docker Compose, MLFlow, Streamlit.
+**Stack:** Python, pandas, LightGBM, FastAPI, Docker, pytest, SciPy, Ruff, GitHub Actions, PostgreSQL, SQLAlchemy, Docker Compose, MLFlow, Streamlit, Google Cloud (Cloud Run, Artifact Registry, Cloud Storage, Secret Manager, Workload Identity Federation), Neon.
 
 ---
 
@@ -22,7 +26,7 @@ Test period: 1 September 2025 to 1 September 2026 (17,566 half-hours never seen 
 | Model | MAE | RMSE | MAPE |
 |---|---|---|---|
 | Naive baseline (same time last week) | 2,132 MW | 2,878 MW | 8.40% |
-| **LightGBM** | **1,247 MW** | **1,628 MW** | **5.03%** |
+| **LightGBM** | **1,241 MW** | **1,620 MW** | **5.03%** |
 
 | Day | MAPE |
 |---|---|
@@ -35,8 +39,8 @@ Three LightGBM quantile models (q10, q50, q90) give an 80% prediction interval a
 
 | Intervals | Coverage | Below | Above | Average width |
 |---|---|---|---|---|
-| Raw quantile models | 51.3% | 20.7% | 28.0% | 2,466 MW |
-| Conformally calibrated | 75.8% | 11.2% | 13.0% | 3,969 MW |
+| Raw quantile models | 51.0% | 20.7% | 28.3% | 2,468 MW |
+| Conformally calibrated | 75.7% | 11.2% | 13.1% | 3,964 MW |
 | **Calibrated, models retrained on full training period** | **81.9%** | **9.3%** | **8.8%** | **4,204 MW** |
 
 The raw quantile models were overconfident, covering only half of actual values. Calibration widened each interval by 758 MW, bringing coverage to the 80% target with misses balanced on both sides. The intervals also adapt to the time of day: they are narrowest overnight (around 3,000 MW) and widest around midday (up to around 6,000 MW).
@@ -104,6 +108,10 @@ The demand model was replayed over the test year day by day, as if each day had 
 - **Accuracy** was no better than the same time last week baseline (7 day average) on 26 days, in three spells: 2 January, 31 January to 9 February, and 18 July to 4 August. The July spell coincides with the largest input drift of the year: temperature in July 2026 differed sharply from the training years Julys (PSI 0.97), giving the model weather it had seen little of.
 - **Input drift:** sunshine and recent demand stayed stable or moderate (PSI up to 0.13 and 0.20, the latter over Christmas), but temperature shifted by more than 0.25 in half the months, because weather comes in spells lasting days or weeks.
 
+### Live forecasts
+
+Since October 2026, a scheduled job forecasts the next days demand every morning from the latest Elexon demand and an Open Meteo **weather forecast**, the inputs a real forecaster would have. Each forecast is scored once that days actual demand is published, with the same daily accuracy, baseline and coverage checks as the replay above, and shown on the live dashboard. Because the model was trained on actual weather, live accuracy is expected to be somewhat worse than the 5.03% test result; the live scores measure by how much.
+
 ### What the data shows about prices
 
 - **Daily shape:** an evening peak at 6–7pm UK time (about £112/MWh on average), a smaller morning peak, an overnight dip (about £69), and a midday dip (about £74) caused by solar.
@@ -131,7 +139,7 @@ python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-docker compose up -d db        # start PostgreSQL and MLFlow server
+docker compose up -d db        # start PostgreSQL 
 python src/ingest.py           # download demand and weather data
 python src/validate.py         # check data quality
 python src/preprocess.py       # clean, align and join
@@ -143,6 +151,7 @@ python src/train_price.py      # select features, train the price model, compare
 python src/spikes.py           # train the spike classifier and choose its cut off
 python src/battery_backtest.py # backtest battery trading strategies on the test year
 python src/monitor.py          # replay the test year and save the monitoring tables
+python src/live.py             # forecast tomorrow from live data and score earlier live forecasts
 ```
 
 Each training script logs its settings, results and model to MLflow. Open `http://localhost:5001` to browse and compare runs, and to see model versions.
@@ -173,6 +182,8 @@ ruff check .
 
 Every push runs CI on GitHub Actions; Ruff linting, a PostgreSQL database started with Docker Compose, the test suite with coverage, and the API container started with Docker Compose and checked by requesting a forecast. In CI, the tests run against a small model and features table built from synthetic data, since the real data and models aren't stored in the repository. The script that creates them refuses to run outside CI, so it can't overwrite real models. Dependabot opens weekly pull requests for dependency updates.
 
+When CI passes on `main`, the deploy workflow builds the image with the current models, pushes it to artifact registry tagged with the commit ID, deploys the API and dashboard to cloud run, and checks the live API returns a forecast.
+
 ---
 
 ## API
@@ -181,6 +192,7 @@ Every push runs CI on GitHub Actions; Ruff linting, a PostgreSQL database starte
 |---|---|
 | `GET /health` | Returns `{"status": "ok"}` if the service is running |
 | `GET /predict?day=YYYY-MM-DD` | Half-hourly forecast, 80% preditcion interval and actual demand for that day, with the day's MAE and MAPE |
+| `GET /forecast/latest` | The newest live forecast (normally tomorrow), with its 80% interval; returns 404 until the first daily run |
 
 Example response (trimmed):
 
@@ -188,7 +200,7 @@ Example response (trimmed):
 {
   "date": "2026-08-26",
   "in_training_data": false,
-  "mae": 656,
+  "mae": 668,
   "mape": 2.67,
   "interval": "80%",
   "forecast": [
@@ -204,6 +216,23 @@ A single day can also be forecast from the command line: `python src/predict.py 
 ---
 
 ## How it works
+
+### Deployment
+
+```mermaid
+flowchart LR
+    push["Push to main"] --> ci["CI: lint, tests, Docker Compose checks"]
+    ci -->|passes| deploy["Deploy: build image, push to Artifact Registry"]
+    bucket[("Cloud Storage: models")] --> deploy
+    deploy --> api["Cloud Run: API"]
+    deploy --> dash["Cloud Run: dashboard"]
+    retrain["Weekly retrain"] -->|passes quality gate| bucket
+    retrain --> deploy
+    bucket --> daily["Daily forecast job"]
+    daily --> db[("Neon PostgreSQL")]
+    api --> db
+    dash --> db
+```
 
 ### Pipeline
 
@@ -223,22 +252,25 @@ A single day can also be forecast from the command line: `python src/predict.py 
 | Spikes | `src/spikes.py` | Labels price spikes, selects features and a probability cut-off on a validation year, and compares the classifier with persistence |
 | Backtest | `src/battery_backtest.py` | Plans each day's battery schedule from a price forecast with linear programming and scores it on real prices over the test year |
 | Monitor | `src/monitor.py` | Replays the test year day by day: daily error against the baseline, interval coverage and monthly input drift, saved to PostgreSQL |
-| Dashboard | `dashboard/app.py` | Streamlit dashboard of accuracy, coverage, drift and data freshness, with alerts |
+| Live | `src/live.py` | Fetches the last 21 days of demand and a weather forecast, forecasts tomorrow, and scores earlier live forecasts once their actual demand is known |
+| Dashboard | `dashboard/app.py` | Streamlit dashboard of live forecasts, accuracy, coverage, drift and data freshness, with alerts |
 | Evaluate | `src/evaluate.py` | MAE, RMSE, MAPE and quantile loss |
 | Tracking | `src/tracking.py` | Logs each training runs settings, metrics and model files to MLflow, and registers the demand, price and spike models |
 | Predict | `src/predict.py` | Loads the saved models and forecasts a chosen day with interval |
 | Serve | `api/main.py` | FastAPI service, packaged with the `Dockerfile` and run alongside PostgreSQL with `docker-compose.yml` |
 | Test | `tests/` | Unit tests for metrics, features, the spike definition, the battery, the monitoring, and the database, plus API tests |
 | CI | `.github/workflows/tests.yml` | Lints, starts PostgreSQL, runs the tests with coverage, and starts the API and dashboard with Docker Compose on every push |
-| Scheduled retraining | `.github/workflows/retrain.yml` | Every Monday, downloads the latest data, rebuilds the features and runs the retraining, saving the new models as downloadable |
+| Scheduled retraining | `.github/workflows/retrain.yml` | Every Monday, downloads the latest data, rebuilds the features and runs the retraining, publishing if the quality gate is passed |
+| Deploy | `.github/workflows/deploy.yml` | After CI passes on `main`, or after a retrain, builds and pushes the image and deploys the API and dashboard to cloud run |
+| Daily forecast | `.github/workflows/daily.yml` | Every day at 10:00 UTC, runs `src/live.py` against the hosted database |
 
 ### Data
 
 - **Demand:** initial national demand outturn from the Elexon BMRS API, half hourly, January 2023 to September 2026 (64,316 settlement periods).
-- **Weather:** hourly temperature, wind speed and shortwave radiation for London from the Open Meteo historical archive, interpolated to half hourly.
+- **Weather:** hourly temperature, wind speed and shortwave radiation for London from the Open Meteo historical archive, interpolated to half hourly. Live forecasts use the Open Meteo forecast API instead, because the archive runs about 5 days behind.
 - **Prices:** Market Index Price (APX/EPEX) from the Elexon BMRS API. Six missing half hours and 34 half hours with zero traded volume were filled by interpolation.
 - **Wind and solar generation:** actual onshore wind, offshore wind and solar generation from the Elexon BMRS API. 4,383 republished duplicate rows were removed (keeping the latest version), 863 missing half-hours (longest gap 7 hours) were filled by interpolation, and 15 small negative values were set to zero.
-- **Storage:** raw downloads are kept as CSV files, untouched. Everything from cleaning onwards is stored in PostgreSQL tables: `dataset`, `market`, `features` and `price_features`.
+- **Storage:** raw downloads are kept as CSV files, untouched. Everything from cleaning onwards is stored in PostgreSQL tables: `dataset`, `market`, `features` and `price_features`, plus `monitoring_daily` and `monitoring_drift` for the replay and `live_forecasts` and `monitoring_live` for live forecasts.
 
 Validation found two days each missing one settlement period (2023-07-17 period 45 and 2023-12-29 period 8), which were filled by time interpolation.
 
@@ -296,24 +328,23 @@ The price model uses the demand, weather and calendar features (without `dayofye
 
 **Monitoring alerts on performance, not on drift alone.** Input drift is measured with the population stability index against the same calendar month in the training years, because comparing a summer month with a whole training year would flag every season as drift. Even so, temperature shifts by more than 0.25 in half the months, since a single month holds only a handful of weather spells, so a drift alert would fire constantly and be ignored. Alerts are therefore based on accuracy (7 day error no better than the baseline), interval coverage (30 day coverage below 70%) and data freshness, and drift is shown as a likely explanation when accuracy drops, as it did in July 2026.
 
+**Serverless deployment on Google Cloud.** The API and dashboard run on cloud run from the same image, so they scale to zero when idle and cost almost nothing. The first request after a quiet spell takes 10–20 seconds while a container starts and loads the data. The database is neons hosted PostgreSQL in London, next to the cloud run region, because Googles own Cloud SQL has no free tier. The database URL is kept in Secret Manager, not in code or in the image.
+
+**Keyless, gated continuous deployment.** GitHub actions logs in to google cloud with workload identity federation: google trusts GitHubs tokens, but only from this repository, so no long lived key is stored anywhere. A dedicated service account can only deploy to cloud run, push to this projects registry and read and write the models bucket. Deploys happen only after CI passes, and each image is tagged with its commit, so any live version can be traced or rolled back. Models live in a cloud storage bucket rather than in git, and a retrained model reaches production only if it passes the quality gate.
+
 ---
 
 ## Limitations
 
-- The test period uses actual weather, not weather forecasts, so live performance would be somewhat worse.
+- The test period uses actual weather, not weather forecasts, so it overstates live accuracy. Live forecasts use weather forecasts and are scored separately on the dashboard.
 - Weather comes from London only, while national demand depends on weather across Great Britain, especially for solar.
 - Holidays follow the England and Wales calendar; Scotland and Northern Ireland differ.
-- The API replays past days from stored features. Live forecasting, which needs the latest demand data and weather forecasts, is planned as part of cloud deployment.
-- The trained models are still copied into the Docker image, and the weekly retraining runs on GitHubs machines, which cant reach the local MLflow server. Hosting MLflow in the cloud is planned, so that retraining runs are tracked and the API loads its models from the registry.
+- MLflow runs locally only, so the weekly retraining on githubs machines isn't tracked there. Retrained models are versioned by their report in cloud storage and kept as 30 day workflow artifacts instead.
+- The price and spike models arent served live, because live price forecasts would need wind and solar generation forecasts.
 - Interval coverage holds over the test year as a whole, not on every day, so easy days are covered more often and unusual days (such as Christmas) less often. The choice to apply the calibration to retrained models was checked once against the test set.
 - The price model has no gas price input, although gas usually sets GB power prices. The 7-day average price captures its effect only indirectly.
 - Half hourly prices are noisy, and extreme spikes and negative prices remain hard to predict.
 - A spike probability cut off chosen on one year transfers imperfectly to a more volatile year, in practice it would need recalibrating regularly.
-- Monitoring replays the stored test year. On live data it would run after each days actual demand arrives, which is planned as part of cloud deployment.
-
-## Future Roadmap
-
-- Cloud deployment
 
 ---
 
