@@ -5,9 +5,9 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+sys.path.append(str(Path(__file__).resolve().parent.parent / "src"))
 from db import load_table
 
-sys.path.append(str(Path(__file__).resolve().parent.parent / "src"))
 
 def load_optional(name):
     try:
