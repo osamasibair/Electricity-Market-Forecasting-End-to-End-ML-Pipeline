@@ -1,6 +1,7 @@
 """Metrics for comparing forecasts."""
 import numpy as np
 
+
 def metrics(actual, predicted):
     error = actual - predicted
     mae = np.abs(error).mean()

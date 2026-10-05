@@ -1,10 +1,10 @@
 """Build model features from the processed dataset."""
 
-from threading import local
 
-import pandas as pd
 from pathlib import Path
+
 import holidays
+import pandas as pd
 
 processed = Path("data/processed")
 uk_holidays = holidays.UnitedKingdom(subdiv="ENG", years=range(2022, 2028))

@@ -1,7 +1,9 @@
 """Build features for the day ahead price model."""
 
 from pathlib import Path
+
 import pandas as pd
+
 from features import build_features
 
 processed = Path("data/processed")

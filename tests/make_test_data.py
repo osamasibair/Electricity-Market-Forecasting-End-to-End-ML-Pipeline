@@ -1,10 +1,12 @@
 """Create a synthetic dataset and models so the API tests can run in CI."""
 
 from pathlib import Path
+
 import joblib
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
+
 from features import build_features
 from train import features
 

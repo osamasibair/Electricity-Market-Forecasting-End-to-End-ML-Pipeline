@@ -1,9 +1,11 @@
 """Train a next day demand model and compare it to a baseline."""
 
 from pathlib import Path
+
 import joblib
 import lightgbm as lgb
 import pandas as pd
+
 from evaluate import metrics
 
 processed = Path("data/processed")

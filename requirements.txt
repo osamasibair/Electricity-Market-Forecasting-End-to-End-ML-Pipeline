@@ -9,6 +9,7 @@ click==8.5.0
 cloudpickle==3.1.2
 comm==0.2.3
 contourpy==1.4.0
+coverage==7.16.2
 cycler==0.12.1
 debugpy==1.8.22
 executing==2.2.1
@@ -52,9 +53,11 @@ pydantic_core==2.46.5
 Pygments==2.21.0
 pyparsing==3.3.3
 pytest==9.1.1
+pytest-cov==7.1.0
 python-dateutil==2.9.0.post0
 pyzmq==27.2.0
 requests==2.34.2
+ruff==0.16.10
 scikit-learn==1.9.1
 scipy==1.18.1
 seaborn==0.13.2

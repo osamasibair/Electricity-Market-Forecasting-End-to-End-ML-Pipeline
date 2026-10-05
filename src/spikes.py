@@ -1,10 +1,18 @@
 """Classify half-hours where the price spikes well above its recent level."""
 from pathlib import Path
+
 import joblib
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
-from sklearn.metrics import average_precision_score, f1_score, precision_score, recall_score, roc_auc_score
+from sklearn.metrics import (
+    average_precision_score,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
+
 from train import split_date
 
 processed = Path("data/processed")

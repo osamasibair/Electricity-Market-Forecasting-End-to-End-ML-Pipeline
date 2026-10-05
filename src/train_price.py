@@ -1,8 +1,10 @@
 """Train a day-ahead price model and compare it with naive baselines."""
 from pathlib import Path
+
 import joblib
 import lightgbm as lgb
 import pandas as pd
+
 from evaluate import metrics
 from train import split_date
 

@@ -1,4 +1,4 @@
-name: tests
+name: CI
 
 on:
   push:
@@ -14,6 +14,17 @@ jobs:
         with:
           python-version: "3.14"
           cache: pip
-      - run: pip install -r requirements.txt
-      - run: PYTHONPATH=src python tests/make_test_data.py
-      - run: pytest
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Lint
+        run: ruff check .
+      - name: Create CI fixtures
+        run: PYTHONPATH=src python tests/make_test_data.py
+      - name: Test with coverage
+        run: pytest --cov=src --cov=api --cov-report=term-missing
+      - name: Build Docker image
+        run: docker build -t electricity-forecast .
+      - name: Check the container starts
+        run: |
+          docker run -d -p 8000:8000 electricity-forecast
+          curl --retry 10 --retry-connrefused --retry-delay 2 --fail http://localhost:8000/health

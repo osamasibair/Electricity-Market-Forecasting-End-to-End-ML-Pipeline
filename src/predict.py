@@ -2,11 +2,13 @@
 
 import sys
 from pathlib import Path
+
 import joblib
+import numpy as np
 import pandas as pd
+
 from evaluate import metrics
 from train import features, split_date
-import numpy as np
 
 processed = Path("data/processed")
 models = Path("models")

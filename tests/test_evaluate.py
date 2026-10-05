@@ -1,6 +1,8 @@
-import pytest
 import pandas as pd
+import pytest
+
 from evaluate import metrics, quantile_loss
+
 
 def test_perfect_forecast_has_zero_error():
     actual = pd.Series([100.0, 200.0, 300.0])

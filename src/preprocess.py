@@ -1,7 +1,8 @@
 """Clean raw data and get demand and weather onto one half hourly timeline."""
 
-import pandas as pd
 from pathlib import Path
+
+import pandas as pd
 
 raw = Path("data/raw")
 processed = Path("data/processed")

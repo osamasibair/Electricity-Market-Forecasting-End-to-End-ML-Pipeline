@@ -1,5 +1,6 @@
 """Battery trading backtest, plans each days schedule from a price forecast and scores it on real prices."""
 from pathlib import Path
+
 import joblib
 import numpy as np
 import pandas as pd

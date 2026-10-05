@@ -3,11 +3,13 @@
 import sys
 from datetime import date
 from pathlib import Path
+
 import pandas as pd
 from fastapi import FastAPI, HTTPException
+
 sys.path.append(str(Path(__file__).resolve().parent.parent / "src"))
 from evaluate import metrics
-from predict import load_model, predict_day, load_quantile_models
+from predict import load_model, load_quantile_models, predict_day
 from train import split_date
 
 processed = Path("data/processed")
