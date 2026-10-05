@@ -32,3 +32,4 @@ jobs:
         run: gcloud storage cp -r gs://project-559124f9-c74b-43e6-906-models/models .
       - name: Forecast tomorrow and score earlier forecasts
         run: python src/live.py
+        
