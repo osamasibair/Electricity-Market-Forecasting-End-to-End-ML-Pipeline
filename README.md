@@ -39,7 +39,7 @@ Three LightGBM quantile models (q10, q50, q90) give an 80% prediction interval a
 
 | Intervals | Coverage | Below | Above | Average width |
 |---|---|---|---|---|
-| Raw quantile models | 51.0% | 20.7% | 28.3% | 2,468 MW |
+| Raw quantile models | 51.0% | 20.7% | 28.3% | 2,448 MW |
 | Conformally calibrated | 75.7% | 11.2% | 13.1% | 3,964 MW |
 | **Calibrated, models retrained on full training period** | **81.9%** | **9.3%** | **8.8%** | **4,204 MW** |
 
