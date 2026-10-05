@@ -10,6 +10,8 @@ updates:
     ignore:
       - dependency-name: "pydantic-core"
       - dependency-name: "pydantic_core"
+      - dependency-name: "protobuf"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
