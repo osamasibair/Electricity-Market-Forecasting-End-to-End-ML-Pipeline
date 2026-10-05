@@ -24,8 +24,10 @@ jobs:
         run: PYTHONPATH=src python tests/make_test_data.py
       - name: Test with coverage
         run: pytest --cov=src --cov=api --cov-report=term-missing
-      - name: Start the API with Docker Compose
-        run: docker compose up -d --build api
+      - name: Start the API and dashboard with Docker Compose
+        run: docker compose up -d --build api dashboard
       - name: Check the API serves a forecast
         run: curl --retry 10 --retry-all-errors --retry-delay 2 --fail --silent --show-error --output /dev/null "http://localhost:8000/predict?day=2026-08-26"
+      - name: Check the dashboard is up
+        run: curl --retry 10 --retry-all-errors --retry-delay 2 --fail --silent --show-error --output /dev/null "http://localhost:8501/_stcore/health"
       
