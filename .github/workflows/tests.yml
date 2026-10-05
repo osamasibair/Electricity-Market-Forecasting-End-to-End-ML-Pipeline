@@ -15,4 +15,5 @@ jobs:
           python-version: "3.14"
           cache: pip
       - run: pip install -r requirements.txt
+      - run: PYTHONPATH=src python tests/make_test_data.py
       - run: pytest
