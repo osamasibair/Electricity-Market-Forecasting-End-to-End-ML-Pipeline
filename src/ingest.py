@@ -10,6 +10,7 @@ import requests
 raw = Path("data/raw")
 elexon = "https://data.elexon.co.uk/bmrs/api/v1/demand/outturn"
 weather = "https://archive-api.open-meteo.com/v1/archive"
+weather_forecast = "https://api.open-meteo.com/v1/forecast"
 market_index = "https://data.elexon.co.uk/bmrs/api/v1/balancing/pricing/market-index"
 wind_solar = "https://data.elexon.co.uk/bmrs/api/v1/generation/actual/per-type/wind-and-solar"
 
@@ -38,6 +39,19 @@ def fetch_weather(start, end, lat=51.5072, lon=-0.1276):
         "timezone": "UTC",
     }
     response = requests.get(weather, params=query, timeout=60)
+    response.raise_for_status()
+    return pd.DataFrame(response.json()["hourly"])
+
+def fetch_weather_forecast(past_days, forecast_days, lat=51.5072, lon=-0.1276):
+    query = {
+        "latitude": lat,
+        "longitude": lon,
+        "hourly": "temperature_2m,wind_speed_10m,shortwave_radiation",
+        "timezone": "UTC",
+        "past_days": past_days,
+        "forecast_days": forecast_days,
+    }
+    response = requests.get(weather_forecast, params=query, timeout=60)
     response.raise_for_status()
     return pd.DataFrame(response.json()["hourly"])
 

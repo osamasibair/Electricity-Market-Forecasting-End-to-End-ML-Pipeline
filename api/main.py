@@ -41,3 +41,21 @@ def predict(day: date):
             for ts, f, a, l, h in zip(result.index, result["forecast"], result["actual"], result["low"], result["high"])
         ],
     }
+
+@app.get("/forecast/latest", responses={404: {"description": "No live forecasts yet"}})
+def latest_forecast():
+    try:
+        live = load_table("live_forecasts")
+    except ValueError:
+        raise HTTPException(status_code=404, detail="no live forecasts yet")
+    local_day = live.index.tz_localize("UTC").tz_convert("Europe/London").date
+    day = local_day.max()
+    result = live[local_day == day]
+    return {
+        "date": day,
+        "interval": "80%",
+        "forecast": [
+            {"timestamp_utc": ts.isoformat(), "low": round(low), "forecast": round(forecast), "high": round(high)}
+            for ts, forecast, low, high in zip(result.index, result["forecast"], result["low"], result["high"])
+        ],
+    }

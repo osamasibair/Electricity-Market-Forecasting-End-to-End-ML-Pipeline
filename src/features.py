@@ -20,7 +20,7 @@ def build_features(df):
     df["demand_lag_336"] = df["demand"].shift(336)
     df["demand_roll_96"] = df["demand"].shift(96).rolling(48).mean()
     df = df.drop(columns=["wind_speed_10m"])
-    return df.dropna()
+    return df.dropna(subset=df.columns.drop("demand"))
 
 if __name__ == "__main__":
     df = load_table("dataset")

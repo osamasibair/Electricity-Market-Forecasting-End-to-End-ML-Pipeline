@@ -43,3 +43,12 @@ def test_christmas_flag():
     assert (out.loc["2023-12-25", "is_christmas"] == 1).all()
     assert (out.loc["2023-12-31", "is_christmas"] == 1).all()
     assert (out.loc["2024-01-02", "is_christmas"] == 0).all()
+
+
+def test_keeps_rows_whose_demand_is_not_known_yet():
+    raw = make_raw("2024-01-08", 14)
+    raw.loc[raw.index[-48:], "demand"] = np.nan
+    out = build_features(raw)
+    assert out.index[-1] == raw.index[-1]
+    assert out["demand"].isna().sum() == 48
+    assert out.drop(columns="demand").isna().sum().sum() == 0
