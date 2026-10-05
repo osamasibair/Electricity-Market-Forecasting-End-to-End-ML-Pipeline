@@ -4,7 +4,6 @@ from pathlib import Path
 import joblib
 import lightgbm as lgb
 import numpy as np
-import pandas as pd
 from sklearn.metrics import (
     average_precision_score,
     f1_score,
@@ -13,9 +12,9 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
+from db import load_table
 from train import split_date
 
-processed = Path("data/processed")
 models = Path("models")
 validation_start = "2024-09-01"
 
@@ -29,7 +28,7 @@ def make_classifier():
 
 
 if __name__ == "__main__":
-    df = pd.read_csv(processed / "price_features.csv", index_col="timestamp", parse_dates=True)
+    df = load_table("price_features")
     df["price_excess_recent"] = df["price_lag_recent"] - df["price_roll_7d"]
     base = joblib.load(models / "price_model.joblib")["features"]
     candidates = {

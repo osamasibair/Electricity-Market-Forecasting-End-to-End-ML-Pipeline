@@ -1,5 +1,7 @@
 """Create a synthetic dataset and models so the API tests can run in CI."""
 
+import os
+import sys
 from pathlib import Path
 
 import joblib
@@ -7,8 +9,12 @@ import lightgbm as lgb
 import numpy as np
 import pandas as pd
 
+from db import save_table
 from features import build_features
 from train import features
+
+if os.environ.get("CI") != "true":
+    sys.exit("This overwrites the models and features table with fake ones, so it only runs in CI.")
 
 index = pd.date_range("2026-07-01", "2026-08-31 23:30", freq="30min", name="timestamp")
 hours = index.hour + index.minute / 60
@@ -20,8 +26,7 @@ raw = pd.DataFrame({
     "shortwave_radiation": np.clip(600 * np.sin((hours - 6) / 12 * np.pi), 0, None),
 }, index=index)
 df = build_features(raw)
-Path("data/processed").mkdir(parents=True, exist_ok=True)
-df.to_csv("data/processed/features.csv")
+save_table(df, "features")
 
 
 def fit(**params):

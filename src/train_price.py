@@ -3,12 +3,11 @@ from pathlib import Path
 
 import joblib
 import lightgbm as lgb
-import pandas as pd
 
+from db import load_table
 from evaluate import metrics
 from train import split_date
 
-processed = Path("data/processed")
 models = Path("models")
 validation_start = "2024-09-01"
 features = ["demand", "temperature_2m", "shortwave_radiation", "period", "dayofweek", "dayofyear", "is_holiday", "is_christmas", "solar_generation", "wind_onshore", "wind_offshore", "wind_total", "net_demand", "price_lag_recent", "price_lag_336", "price_roll_7d"]
@@ -26,7 +25,7 @@ def train_price_model(train, cols):
 
 
 if __name__ == "__main__":
-    df = pd.read_csv(processed / "price_features.csv", index_col="timestamp", parse_dates=True)
+    df = load_table("price_features")
     train = df[df.index < split_date]
     test = df[df.index >= split_date]
     print(f"train: {len(train)} rows, test: {len(test)} rows")

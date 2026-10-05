@@ -1,12 +1,8 @@
 """Build features for the day ahead price model."""
 
-from pathlib import Path
-
-import pandas as pd
-
+from db import load_table, save_table
 from features import build_features
 
-processed = Path("data/processed")
 
 def build_price_features(dataset, market):
     df = build_features(dataset).join(market, how="inner")
@@ -19,9 +15,9 @@ def build_price_features(dataset, market):
     return df.dropna()
 
 if __name__ == "__main__":
-    dataset = pd.read_csv(processed / "dataset.csv", index_col="timestamp", parse_dates=True)
-    market = pd.read_csv(processed / "market.csv", index_col="timestamp", parse_dates=True)
+    dataset = load_table("dataset")
+    market = load_table("market")
     out = build_price_features(dataset, market)
     print(f"{len(out)} rows, {out.shape[1]} columns")
     print(out[["price", "net_demand", "price_lag_recent", "price_lag_336", "price_roll_7d"]].head())
-    out.to_csv(processed / "price_features.csv")
+    save_table(out, "price_features")

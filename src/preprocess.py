@@ -4,8 +4,9 @@ from pathlib import Path
 
 import pandas as pd
 
+from db import save_table
+
 raw = Path("data/raw")
-processed = Path("data/processed")
 
 def load_demand():
     df = pd.read_csv(raw / "demand.csv", parse_dates=["startTime"])
@@ -58,11 +59,10 @@ if __name__ == "__main__":
     df = demand.join(weather, how="inner")
     print(f"{len(df)} rows, {df.isna().sum().sum()} nulls")
     print(df.head())
-    processed.mkdir(parents=True, exist_ok=True)
-    df.to_csv(processed / "dataset.csv")
+    save_table(df, "dataset")
 
     market = load_prices().join(load_generation(), how="inner")
     print(f"market: {len(market)} rows, {market.isna().sum().sum()} nulls")
     print(market.head())
-    market.to_csv(processed / "market.csv")
+    save_table(market, "market")
 

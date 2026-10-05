@@ -1,12 +1,10 @@
 """Build model features from the processed dataset."""
 
-
-from pathlib import Path
-
 import holidays
 import pandas as pd
 
-processed = Path("data/processed")
+from db import load_table, save_table
+
 uk_holidays = holidays.UnitedKingdom(subdiv="ENG", years=range(2022, 2028))
 
 def build_features(df):
@@ -25,10 +23,10 @@ def build_features(df):
     return df.dropna()
 
 if __name__ == "__main__":
-    df = pd.read_csv(processed / "dataset.csv", index_col="timestamp", parse_dates=True)
+    df = load_table("dataset")
     out = build_features(df)
     pd.set_option("display.max_columns", None)
     print(f"{len(out)} rows, {out.shape[1]} columns")
     print(out.head())
-    out.to_csv(processed / "features.csv")
+    save_table(out, "features")
 

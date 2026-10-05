@@ -7,10 +7,10 @@ import joblib
 import numpy as np
 import pandas as pd
 
+from db import load_table
 from evaluate import metrics
 from train import features, split_date
 
-processed = Path("data/processed")
 models = Path("models")
 
 def load_model():
@@ -38,7 +38,7 @@ if __name__ == "__main__":
     date = sys.argv[1] if len(sys.argv) > 1 else "2026-08-26"
     if pd.Timestamp(date) < pd.Timestamp(split_date):
         print("warning: this date was in the training data, so the result will look too good")
-    df = pd.read_csv(processed / "features.csv", index_col="timestamp", parse_dates=True)
+    df = load_table("features")
     result = predict_day(load_model(), df, date, load_quantile_models())
     result["error"] = result["actual"] - result["forecast"]
     print(result[["low", "forecast", "high", "actual", "error"]].round().astype(int).to_string())

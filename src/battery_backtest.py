@@ -6,7 +6,8 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import linprog
 
-processed = Path("data/processed")
+from db import load_table
+
 models = Path("models")
 split_date = "2025-09-01"
 power = 1.0
@@ -41,7 +42,7 @@ def backtest(actual, forecast):
 
 
 if __name__ == "__main__":
-    df = pd.read_csv(processed / "price_features.csv", index_col=0, parse_dates=True)
+    df = load_table("price_features")
     df["typical_day"] = sum(df["price"].shift(96 + 48 * k) for k in range(7)) / 7
     df["price_excess_recent"] = df["price_lag_recent"] - df["price_roll_7d"]
     test = df[df.index >= split_date].dropna()

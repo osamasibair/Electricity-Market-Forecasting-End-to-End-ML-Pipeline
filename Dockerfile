@@ -10,7 +10,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ src/
 COPY api/ api/
 COPY models/ models/
-COPY data/processed/features.csv data/processed/features.csv
 
 EXPOSE 8000
 

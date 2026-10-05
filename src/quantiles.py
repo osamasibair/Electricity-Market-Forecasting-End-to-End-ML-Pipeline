@@ -4,12 +4,11 @@ from pathlib import Path
 import joblib
 import lightgbm as lgb
 import numpy as np
-import pandas as pd
 
+from db import load_table
 from evaluate import metrics, quantile_loss
 from train import features, split_date, target
 
-processed = Path("data/processed")
 models = Path("models")
 quantiles = [0.1, 0.5, 0.9]
 calibration_start = "2024-09-01"
@@ -33,7 +32,7 @@ def interval_report(name, actual, low, high):
 
 
 if __name__ == "__main__":
-    df = pd.read_csv(processed / "features.csv", index_col="timestamp", parse_dates=True)
+    df = load_table("features")
     train = df[df.index < split_date]
     fit_part = train[train.index < calibration_start]
     calib = train[train.index >= calibration_start]

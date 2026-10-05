@@ -4,19 +4,17 @@ import sys
 from datetime import date
 from pathlib import Path
 
-import pandas as pd
 from fastapi import FastAPI, HTTPException
 
 sys.path.append(str(Path(__file__).resolve().parent.parent / "src"))
+from db import load_table
 from evaluate import metrics
 from predict import load_model, load_quantile_models, predict_day
 from train import split_date
 
-processed = Path("data/processed")
-
 app = FastAPI(title="UK Electricity Demand Forecast")
 model = load_model()
-df = pd.read_csv(processed / "features.csv", index_col="timestamp", parse_dates=True)
+df = load_table("features")
 quantile = load_quantile_models()
 
 

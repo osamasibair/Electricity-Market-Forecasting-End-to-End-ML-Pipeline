@@ -4,12 +4,12 @@
 
 An end to end machine learning pipeline that forecasts Great Britain's half hourly electricity demand and price one day ahead, from raw public data to a tested, containerised API, and backtests a battery trading strategy on the price forecasts.
 
-- **Demand: LightGBM day ahead model: 5.05% MAPE, about 40% lower error than a same-time-last-week baseline (8.40%), with 80% prediction intervals achieving 81.5% coverage.**
+- **Demand: LightGBM day ahead model: 5.03% MAPE, about 40% lower error than a same-time-last-week baseline (8.40%), with 80% prediction intervals achieving 81.9% coverage.**
 - **Price: LightGBM model with £21.50/MWh MAE, 15% lower than the best naive baseline, using wind, solar and net demand to forecast cheap and expensive periods.**
 - **Spikes: LightGBM classifier that ranks spike risk 2.5x better than persistence (average precision 0.43 vs 0.17, ROC AUC 0.90).**
 - **Backtest: a simulated 1 MW / 2 MWh battery scheduled from the price forecast earns 77% of the perfect foresight profit, against 52% for a baseline forecast and 74% for a simple average of the last 7 days prices.**
 
-**Stack:** Python, pandas, LightGBM, FastAPI, Docker, pytest, SciPy, Ruff, GitHub Actions.
+**Stack:** Python, pandas, LightGBM, FastAPI, Docker, pytest, SciPy, Ruff, GitHub Actions, PostgreSQL, SQLAlchemy, Docker Compose.
 
 ---
 
@@ -22,11 +22,11 @@ Test period: 1 September 2025 to 1 September 2026 (17,566 half-hours never seen 
 | Model | MAE | RMSE | MAPE |
 |---|---|---|---|
 | Naive baseline (same time last week) | 2,132 MW | 2,878 MW | 8.40% |
-| **LightGBM** | **1,247 MW** | **1,628 MW** | **5.05%** |
+| **LightGBM** | **1,247 MW** | **1,628 MW** | **5.03%** |
 
 | Day | MAPE |
 |---|---|
-| Typical weekday (26 August 2026) | 2.62% |
+| Typical weekday (26 August 2026) | 2.67% |
 | Christmas Day 2025 | 13.52% |
 
 ### Demand prediction intervals
@@ -37,9 +37,9 @@ Three LightGBM quantile models (q10, q50, q90) give an 80% prediction interval a
 |---|---|---|---|---|
 | Raw quantile models | 51.3% | 20.7% | 28.0% | 2,466 MW |
 | Conformally calibrated | 75.8% | 11.2% | 13.0% | 3,969 MW |
-| **Calibrated, models retrained on full training period** | **81.5%** | **9.4%** | **9.1%** | **4,195 MW** |
+| **Calibrated, models retrained on full training period** | **81.9%** | **9.4%** | **9.1%** | **4,195 MW** |
 
-The raw quantile models were overconfident, covering only half of actual values. Calibration widened each interval by 752 MW, bringing coverage to the 80% target with misses balanced on both sides. The intervals also adapt to the time of day: they are narrowest overnight (around 3,000 MW) and widest around midday (up to around 6,000 MW).
+The raw quantile models were overconfident, covering only half of actual values. Calibration widened each interval by 758 MW, bringing coverage to the 80% target with misses balanced on both sides. The intervals also adapt to the time of day: they are narrowest overnight (around 3,000 MW) and widest around midday (up to around 6,000 MW).
 
 ### Price forecast
 
@@ -116,11 +116,14 @@ The data and trained model aren't stored in the repository, so the pipeline has 
 
 **1. Set up and run the pipeline**
 
+The pipeline stores its processed data in PostgreSQL, which runs in Docker.
+
 ```bash
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
+docker compose up -d db        # start PostgreSQL
 python src/ingest.py           # download demand and weather data
 python src/validate.py         # check data quality
 python src/preprocess.py       # clean, align and join
@@ -135,17 +138,16 @@ python src/battery_backtest.py          # backtest battery trading strategies on
 
 On macOS, LightGBM needs OpenMP first: `brew install libomp`
 
-**2. Serve forecasts**, either locally:
+**2. Serve forecasts**, with the API and database together in Docker Compose:
+
+```bash
+docker compose up --build
+```
+
+or locally, with the database already running:
 
 ```bash
 uvicorn api.main:app --reload
-```
-
-or with Docker:
-
-```bash
-docker build -t electricity-forecast .
-docker run -p 8000:8000 electricity-forecast
 ```
 
 Then open `http://127.0.0.1:8000/docs` for interactive API documentation.
@@ -157,7 +159,7 @@ pytest
 ruff check .
 ```
 
-Every push runs CI on GitHub Actions: ruff linting, the test suite with coverage, and a docker build that checks the API container starts. In CI, the API tests run against a small model trained on synthetic data, since the real data and models aren't stored in the repository. Dependabot opens weekly pull requests for dependency updates.
+Every push runs CI on GitHub Actions; Ruff linting, a PostgreSQL database started with Docker Compose, the test suite with coverage, and the API container started with Docker Compose and checked by requesting a forecast. In CI, the tests run against a small model and features table built from synthetic data, since the real data and models aren't stored in the repository. The script that creates them refuses to run outside CI, so it can't overwrite real models. Dependabot opens weekly pull requests for dependency updates.
 
 ---
 
@@ -175,7 +177,7 @@ Example response (trimmed):
   "date": "2026-08-26",
   "in_training_data": false,
   "mae": 656,
-  "mape": 2.62,
+  "mape": 2.67,
   "interval": "80%",
   "forecast": [
     {"timestamp_utc": "2026-08-25T23:00:00", "low": 20175, "forecast": 21673, "high": 22963, "actual": 22284}
@@ -208,7 +210,7 @@ A single day can also be forecast from the command line: `python src/predict.py 
 | Backtest | `src/battery_backtest.py` | Plans each day's battery schedule from a price forecast with linear programming and scores it on real prices over the test year |
 | Evaluate | `src/evaluate.py` | MAE, RMSE, MAPE and quantile loss |
 | Predict | `src/predict.py` | Loads the saved models and forecasts a chosen day with interval |
-| Serve | `api/main.py` | FastAPI service, packaged with the `Dockerfile` |
+| Serve | `api/main.py` | FastAPI service, packaged with the `Dockerfile` and run alongside PostgreSQL with `docker-compose.yml` |
 | Test | `tests/` | Unit tests for metrics, features, the spike definition and the battery, plus API tests |
 | CI | `.github/workflows/tests.yml` | Lints, runs the tests with coverage, and builds and starts the Docker image on every push |
 
@@ -218,6 +220,7 @@ A single day can also be forecast from the command line: `python src/predict.py 
 - **Weather:** hourly temperature, wind speed and shortwave radiation for London from the Open Meteo historical archive, interpolated to half hourly.
 - **Prices:** Market Index Price (APX/EPEX) from the Elexon BMRS API. Six missing half hours and 34 half hours with zero traded volume were filled by interpolation.
 - **Wind and solar generation:** actual onshore wind, offshore wind and solar generation from the Elexon BMRS API. 4,383 republished duplicate rows were removed (keeping the latest version), 863 missing half-hours (longest gap 7 hours) were filled by interpolation, and 15 small negative values were set to zero.
+- **Storage:** raw downloads are kept as CSV files, untouched. Everything from cleaning onwards is stored in PostgreSQL tables: `dataset`, `market`, `features` and `price_features`.
 
 Validation found two days each missing one settlement period (2023-07-17 period 45 and 2023-12-29 period 8), which were filled by time interpolation.
 
@@ -257,7 +260,7 @@ The price model uses the demand, weather and calendar features (without `dayofye
 
 **Time-based split.** Training data ends on 31 August 2025 and testing starts on 1 September 2025, so the model is never trained on data from after the period it's tested on.
 
-**Conformal calibration of the intervals.** Quantile models learn their spread from training data they fit closely, so their intervals come out too narrow on new data. To correct this, the quantile models were first trained on data up to August 2024 and evaluated on a held out calibration year (September 2024 to August 2025). The amount by which actual values fell outside their intervals gave a 752 MW adjustment, the widening needed for 80% of calibration values to fall inside. The final models were retrained on the full training period and the same adjustment applied.
+**Conformal calibration of the intervals.** Quantile models learn their spread from training data they fit closely, so their intervals come out too narrow on new data. To correct this, the quantile models were first trained on data up to August 2024 and evaluated on a held out calibration year (September 2024 to August 2025). The amount by which actual values fell outside their intervals gave a 758 MW adjustment, the widening needed for 80% of calibration values to fall inside. The final models were retrained on the full training period and the same adjustment applied.
 
 **Timezones.** Timestamps are stored in UTC to avoid duplicate and missing hours at the clock changes. Calendar features use UK local time, because that's when people actually use electricity.
 
@@ -266,6 +269,8 @@ The price model uses the demand, weather and calendar features (without `dayofye
 **Separate market data.** Prices and generation are stored in their own processed file, so adding them didn't change the demand pipeline or its results.
 
 **Spikes relative to the recent level.** Price levels drift by a factor of two between years, so a fixed threshold such as "above £150/MWh" would label most of early 2023 as spikes and almost nothing in 2024, and the classifier would simply learn which periods were expensive. Defining a spike as a jump above the recent 7 day average captures sudden, unusual prices whatever the current level.
+
+**PostgreSQL for processed data.** Raw downloads stay as CSV files so everything can be rebuilt without calling the APIs again, but every processed table lives in one place, the database, so training, backtesting and the API always read the same data. The connection comes from a `DATABASE_URL` environment variable, so the same code runs on a laptop, inside Docker Compose and in CI.
 
 ---
 
@@ -283,7 +288,6 @@ The price model uses the demand, weather and calendar features (without `dayofye
 
 ## Future Roadmap
 
-- PostgreSQL storage
 - Scheduled retraining
 - MLflow experiment tracking
 - Monitoring dashboard

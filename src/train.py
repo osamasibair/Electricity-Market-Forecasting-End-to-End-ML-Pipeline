@@ -4,11 +4,10 @@ from pathlib import Path
 
 import joblib
 import lightgbm as lgb
-import pandas as pd
 
+from db import load_table
 from evaluate import metrics
 
-processed = Path("data/processed")
 models = Path("models")
 split_date = "2025-09-01"
 
@@ -21,7 +20,7 @@ def train_model(train): #LightGBM model training function
     return model
 
 if __name__ == "__main__":
-    df = pd.read_csv(processed / "features.csv", index_col="timestamp", parse_dates=True)
+    df = load_table("features")
     train = df[df.index < split_date]
     test = df[df.index >= split_date]
     print(f"train: {len(train)} rows, test: {len(test)} rows")
