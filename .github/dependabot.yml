@@ -7,6 +7,9 @@ updates:
     groups:
       python-packages:
         patterns: ["*"]
+    ignore:
+      - dependency-name: "pydantic-core"
+      - dependency-name: "pydantic_core"
   - package-ecosystem: github-actions
     directory: /
     schedule:

@@ -27,4 +27,4 @@ jobs:
       - name: Check the container starts
         run: |
           docker run -d -p 8000:8000 electricity-forecast
-          curl --retry 10 --retry-connrefused --retry-delay 2 --fail http://localhost:8000/health
+          curl --retry 10 --retry-all-errors --retry-delay 2 --fail http://localhost:8000/health
