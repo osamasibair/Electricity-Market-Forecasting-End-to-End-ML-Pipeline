@@ -7,6 +7,7 @@ import numpy as np
 
 from db import load_table
 from evaluate import metrics, quantile_loss
+from tracking import log_run
 from train import features, split_date, target
 
 models = Path("models")
@@ -29,6 +30,7 @@ def interval_report(name, actual, low, high):
           f"below {(actual < low).mean() * 100:4.1f}%   "
           f"above {(actual > high).mean() * 100:4.1f}%   "
           f"width {(high - low).mean():5.0f} MW")
+    return inside.mean(), (high - low).mean()
 
 
 if __name__ == "__main__":
@@ -57,7 +59,15 @@ if __name__ == "__main__":
     refit = train_quantile_models(train)
     refit_preds = {q: model.predict(test[features]) for q, model in refit.items()}
     print(f"refit median MAPE: {metrics(test[target], refit_preds[0.5])['mape']:.2f}%")
-    interval_report("refit", test[target], refit_preds[0.1] - adjustment, refit_preds[0.9] + adjustment)
+    coverage, width = interval_report("refit", test[target], refit_preds[0.1] - adjustment, refit_preds[0.9] + adjustment)
 
     joblib.dump({"models": refit, "adjustment": adjustment}, models / "quantile_models.joblib")
     print("saved models/quantile_models.joblib")
+
+    log_run(
+        experiment="demand-intervals",
+        params={"quantiles": ",".join(str(q) for q in quantiles), "calibration_start": calibration_start, "split_date": split_date},
+        metrics={"adjustment_mw": adjustment, "coverage": coverage, "width_mw": width,
+                 "median_mape": metrics(test[target], refit_preds[0.5])["mape"]},
+        files=[models / "quantile_models.joblib"],
+    )

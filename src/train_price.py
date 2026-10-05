@@ -6,6 +6,7 @@ import lightgbm as lgb
 
 from db import load_table
 from evaluate import metrics
+from tracking import log_run
 from train import split_date
 
 models = Path("models")
@@ -52,3 +53,14 @@ if __name__ == "__main__":
 
     joblib.dump({"model": model, "features": chosen}, models / "price_model.joblib")
     print("saved models/price_model.joblib")
+
+    log_run(
+        experiment="price",
+        params={"chosen": best, "features": ",".join(chosen), "validation_start": validation_start, "split_date": split_date},
+        metrics={**{f"validation_mae_{name.replace(' ', '_')}": mae for name, mae in val_mae.items()},
+                 **{f"{name.replace(' ', '_')}_{key}": value for name, m in results.items() for key, value in m.items()}},
+        files=[models / "price_model.joblib"],
+        model=model,
+        registered_name="price-forecast",
+        input_example=test[chosen].head(),
+    )

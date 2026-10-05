@@ -7,6 +7,7 @@ import lightgbm as lgb
 
 from db import load_table
 from evaluate import metrics
+from tracking import log_run
 
 models = Path("models")
 split_date = "2025-09-01"
@@ -36,3 +37,14 @@ if __name__ == "__main__":
     models.mkdir(exist_ok=True)
     joblib.dump(model, models / "model.joblib")
     print("saved models/model.joblib")
+
+    log_run(
+        experiment="demand",
+        params={"split_date": split_date, "features": ",".join(features), "n_estimators": model.n_estimators,
+                "learning_rate": model.learning_rate, "train_rows": len(train), "test_rows": len(test)},
+        metrics={f"{name}_{key}": value for name, m in [("baseline", baseline), ("lightgbm", result)] for key, value in m.items()},
+        files=[models / "model.joblib"],
+        model=model,
+        registered_name="demand-forecast",
+        input_example=test[features].head(),
+    )

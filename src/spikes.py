@@ -13,6 +13,7 @@ from sklearn.metrics import (
 )
 
 from db import load_table
+from tracking import log_run
 from train import split_date
 
 models = Path("models")
@@ -83,3 +84,15 @@ if __name__ == "__main__":
     joblib.dump({"model": model, "features": features, "threshold": threshold, "cutoff": cutoff},
                 models / "spike_model.joblib")
     print("saved models/spike_model.joblib")
+
+    log_run(
+        experiment="spikes",
+        params={"chosen": best, "threshold": round(threshold, 2), "cutoff": round(cutoff, 2), "validation_start": validation_start},
+        metrics={"average_precision": average_precision_score(y_test, prob), "roc_auc": roc_auc_score(y_test, prob),
+                 "precision": precision_score(y_test, tuned), "recall": recall_score(y_test, tuned), "f1": f1_score(y_test, tuned),
+                 "persistence_average_precision": average_precision_score(y_test, persistence)},
+        files=[models / "spike_model.joblib"],
+        model=model,
+        registered_name="spike-classifier",
+        input_example=test[features].head(),
+    )

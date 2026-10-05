@@ -9,7 +9,7 @@ An end to end machine learning pipeline that forecasts Great Britain's half hour
 - **Spikes: LightGBM classifier that ranks spike risk 2.5x better than persistence (average precision 0.43 vs 0.17, ROC AUC 0.90).**
 - **Backtest: a simulated 1 MW / 2 MWh battery scheduled from the price forecast earns 77% of the perfect foresight profit, against 52% for a baseline forecast and 74% for a simple average of the last 7 days prices.**
 
-**Stack:** Python, pandas, LightGBM, FastAPI, Docker, pytest, SciPy, Ruff, GitHub Actions, PostgreSQL, SQLAlchemy, Docker Compose.
+**Stack:** Python, pandas, LightGBM, FastAPI, Docker, pytest, SciPy, Ruff, GitHub Actions, PostgreSQL, SQLAlchemy, Docker Compose, MLFlow.
 
 ---
 
@@ -123,7 +123,7 @@ python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-docker compose up -d db        # start PostgreSQL
+docker compose up -d db        # start PostgreSQL and MLFlow server
 python src/ingest.py           # download demand and weather data
 python src/validate.py         # check data quality
 python src/preprocess.py       # clean, align and join
@@ -136,6 +136,7 @@ python src/spikes.py           # train the spike classifier and choose its cut o
 python src/battery_backtest.py          # backtest battery trading strategies on the test year
 ```
 
+Each training script logs its settings, results and model to MLflow. Open `http://localhost:5001` to browse and compare runs, and to see model versions.
 On macOS, LightGBM needs OpenMP first: `brew install libomp`
 
 **2. Serve forecasts**, with the API and database together in Docker Compose:
@@ -200,7 +201,8 @@ A single day can also be forecast from the command line: `python src/predict.py 
 | Ingest | `src/ingest.py` | Downloads demand from Elexon in weekly chunks and weather from Open Meteo |
 | Validate | `src/validate.py` | Checks for missing periods, duplicates, nulls, out of range values and date coverage |
 | Explore | `notebooks/exploration.ipynb` | Daily, weekly and seasonal patterns, temperature relationship, autocorrelation, holidays |
-| Preprocess | `src/preprocess.py` | Converts to UTC, fills gaps, resamples weather to half hourly, joins the sources |
+| Preprocess | `src/preprocess.py` | Converts to UTC, fills gaps, resamples weather to half hourly, joins the sources and saves them to PostgreSQL |
+| Database | `src/db.py` | Saves and loads tables in PostgreSQL; every stage after preprocessing reads and writes through it |
 | Features | `src/features.py` | Builds calendar, weather and lag features |
 | Train | `src/train.py` | Trains LightGBM with a time based split and compares it with the baseline |
 | Quantiles | `src/quantiles.py` | Trains q10/q50/q90 models and calibrates the prediction intervals |
@@ -210,10 +212,11 @@ A single day can also be forecast from the command line: `python src/predict.py 
 | Spikes | `src/spikes.py` | Labels price spikes, selects features and a probability cut-off on a validation year, and compares the classifier with persistence |
 | Backtest | `src/battery_backtest.py` | Plans each day's battery schedule from a price forecast with linear programming and scores it on real prices over the test year |
 | Evaluate | `src/evaluate.py` | MAE, RMSE, MAPE and quantile loss |
+| Tracking | `src/tracking.py` | Logs each training runs settings, metrics and model files to MLflow, and registers the demand, price and spike models |
 | Predict | `src/predict.py` | Loads the saved models and forecasts a chosen day with interval |
 | Serve | `api/main.py` | FastAPI service, packaged with the `Dockerfile` and run alongside PostgreSQL with `docker-compose.yml` |
-| Test | `tests/` | Unit tests for metrics, features, the spike definition and the battery, plus API tests |
-| CI | `.github/workflows/tests.yml` | Lints, runs the tests with coverage, and builds and starts the Docker image on every push |
+| Test | `tests/` | Unit tests for metrics, features, the spike definition, the battery, and the database, plus API tests |
+| CI | `.github/workflows/tests.yml` | Lints, starts PostgreSQL, runs the tests with coverage, and builds and starts the Docker image on every push |
 | Scheduled retraining | `.github/workflows/retrain.yml` | Every Monday, downloads the latest data, rebuilds the features and runs the retraining, saving the new models as downloadable |
 
 ### Data
@@ -268,13 +271,15 @@ The price model uses the demand, weather and calendar features (without `dayofye
 
 **Net demand for prices.** Prices are set by supply and demand together. Low demand alone doesn't explain negative prices (overnight demand is low every night, but prices go negative on only a small share of nights), whereas low demand combined with high wind or solar does. Net demand captures this directly.
 
-**Separate market data.** Prices and generation are stored in their own processed file, so adding them didn't change the demand pipeline or its results.
+**Separate market data.** Prices and generation are stored in their own table, so adding them didn't change the demand pipeline or its results.
 
 **Spikes relative to the recent level.** Price levels drift by a factor of two between years, so a fixed threshold such as "above £150/MWh" would label most of early 2023 as spikes and almost nothing in 2024, and the classifier would simply learn which periods were expensive. Defining a spike as a jump above the recent 7 day average captures sudden, unusual prices whatever the current level.
 
 **PostgreSQL for processed data.** Raw downloads stay as CSV files so everything can be rebuilt without calling the APIs again, but every processed table lives in one place, the database, so training, backtesting and the API always read the same data. The connection comes from a `DATABASE_URL` environment variable, so the same code runs on a laptop, inside Docker Compose and in CI.
 
 **Scheduled retraining with a quality gate.** Demand patterns drift as solar capacity grows and behaviour changes, so the models are retrained weekly on the latest data. Before anything is saved, a model trained without the most recent 8 weeks must beat the same time last week baseline on them, otherwise the run fails and the previous models are kept. The interval calibration is recomputed on the same recent weeks. The READMEs results use data up to 1 September 2026 so they stay reproducible, only the retraining workflow fetches newer data.
+
+**Experiment tracking with MLflow.** Every training run records its settings, metrics and model files in MLflow, so results can be compared across runs and any past model can be recovered exactly. The demand, price and spike models are registered as numbered versions. The MLflow server runs in Docker Compose, storing its records in a separate PostgreSQL database and its model files in a Docker volume.
 
 ---
 
@@ -284,7 +289,7 @@ The price model uses the demand, weather and calendar features (without `dayofye
 - Weather comes from London only, while national demand depends on weather across Great Britain, especially for solar.
 - Holidays follow the England and Wales calendar; Scotland and Northern Ireland differ.
 - The API replays past days from stored features. Live forecasting, which needs the latest demand data and weather forecasts, is planned as part of cloud deployment.
-- The feature data is stored inside the Docker image; a database is planned.
+- The trained models are still copied into the Docker image, and the weekly retraining runs on GitHubs machines, which cant reach the local MLflow server. Hosting MLflow in the cloud is planned, so that retraining runs are tracked and the API loads its models from the registry.
 - Interval coverage holds over the test year as a whole, not on every day, so easy days are covered more often and unusual days (such as Christmas) less often. The choice to apply the calibration to retrained models was checked once against the test set.
 - The price model has no gas price input, although gas usually sets GB power prices. The 7-day average price captures its effect only indirectly.
 - Half hourly prices are noisy, and extreme spikes and negative prices remain hard to predict.
@@ -292,7 +297,6 @@ The price model uses the demand, weather and calendar features (without `dayofye
 
 ## Future Roadmap
 
-- MLflow experiment tracking
 - Monitoring dashboard
 - Cloud deployment
 
