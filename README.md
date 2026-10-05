@@ -1,5 +1,7 @@
 # UK Electricity Market Forecasting End to End ML Pipeline
 
+[![CI](https://github.com/osamasibair/Electricity-Market-Forecasting-End-to-End-ML-Pipeline/actions/workflows/tests.yml/badge.svg)](https://github.com/osamasibair/Electricity-Market-Forecasting-End-to-End-ML-Pipeline/actions/workflows/tests.yml)
+
 An end to end machine learning pipeline that forecasts Great Britain's half hourly electricity demand and price one day ahead, from raw public data to a tested, containerised API, and backtests a battery trading strategy on the price forecasts.
 
 - **Demand: LightGBM day ahead model: 5.05% MAPE, about 40% lower error than a same-time-last-week baseline (8.40%), with 80% prediction intervals achieving 81.5% coverage.**
@@ -7,7 +9,7 @@ An end to end machine learning pipeline that forecasts Great Britain's half hour
 - **Spikes: LightGBM classifier that ranks spike risk 2.5x better than persistence (average precision 0.43 vs 0.17, ROC AUC 0.90).**
 - **Backtest: a simulated 1 MW / 2 MWh battery scheduled from the price forecast earns 77% of the perfect foresight profit, against 52% for a baseline forecast and 74% for a simple average of the last 7 days prices.**
 
-**Stack:** Python, pandas, LightGBM, FastAPI, Docker, pytest, SciPy
+**Stack:** Python, pandas, LightGBM, FastAPI, Docker, pytest, SciPy, Ruff, GitHub Actions.
 
 ---
 
@@ -152,7 +154,10 @@ Then open `http://127.0.0.1:8000/docs` for interactive API documentation.
 
 ```bash
 pytest
+ruff check .
 ```
+
+Every push runs CI on GitHub Actions: ruff linting, the test suite with coverage, and a docker build that checks the API container starts. In CI, the API tests run against a small model trained on synthetic data, since the real data and models aren't stored in the repository. Dependabot opens weekly pull requests for dependency updates.
 
 ---
 
@@ -205,6 +210,7 @@ A single day can also be forecast from the command line: `python src/predict.py 
 | Predict | `src/predict.py` | Loads the saved models and forecasts a chosen day with interval |
 | Serve | `api/main.py` | FastAPI service, packaged with the `Dockerfile` |
 | Test | `tests/` | Unit tests for metrics, features, the spike definition and the battery, plus API tests |
+| CI | `.github/workflows/tests.yml` | Lints, runs the tests with coverage, and builds and starts the Docker image on every push |
 
 ### Data
 
@@ -277,7 +283,6 @@ The price model uses the demand, weather and calendar features (without `dayofye
 
 ## Future Roadmap
 
-- CI with GitHub Actions
 - PostgreSQL storage
 - Scheduled retraining
 - MLflow experiment tracking
