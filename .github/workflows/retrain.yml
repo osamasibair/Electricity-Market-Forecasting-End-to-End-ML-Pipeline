@@ -5,6 +5,10 @@ on:
     - cron: "0 6 * * 1"
   workflow_dispatch:
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   retrain:
     runs-on: ubuntu-latest
@@ -37,3 +41,14 @@ jobs:
           name: demand-models
           path: models/
           retention-days: 30
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: github-deployer@project-559124f9-c74b-43e6-906.iam.gserviceaccount.com
+      - uses: google-github-actions/setup-gcloud@v3
+      - name: Publish the new models
+        run: gcloud storage cp models/model.joblib models/quantile_models.joblib models/report.json gs://project-559124f9-c74b-43e6-906-models/models/
+
+  deploy:
+    needs: retrain
+    uses: ./.github/workflows/deploy.yml
