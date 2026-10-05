@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/osamasibair/Electricity-Market-Forecasting-End-to-End-ML-Pipeline/actions/workflows/tests.yml/badge.svg)](https://github.com/osamasibair/Electricity-Market-Forecasting-End-to-End-ML-Pipeline/actions/workflows/tests.yml)
 [![Deploy](https://github.com/osamasibair/Electricity-Market-Forecasting-End-to-End-ML-Pipeline/actions/workflows/deploy.yml/badge.svg)](https://github.com/osamasibair/Electricity-Market-Forecasting-End-to-End-ML-Pipeline/actions/workflows/deploy.yml)
-[![Daily forecast](https://github.com/osamasibair/Electricity-Market-Forecasting-End-to-End-ML-Pipeline/actions/workflows/daily.yml/badge.svg)](https://github.com/osamasibair/Electricity-Market-Forecasting-End-to-End-ML-Pipeline/actions/workflows/daily.yml)
+[![Daily forecast](https://github.com/osamasibair/Electricity-Market-Forecasting-End-to-End-ML-Pipeline/actions/workflows/daily.yml/badge.svg?event=schedule)](https://github.com/osamasibair/Electricity-Market-Forecasting-End-to-End-ML-Pipeline/actions/workflows/daily.yml)
 
 An end to end machine learning pipeline that forecasts Great Britain's half hourly electricity demand and price one day ahead, from raw public data to a tested, containerised API, and backtests a battery trading strategy on the price forecasts.
 
