@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import linprog
 
-from db import load_table
+from db import load_table, save_table
 
 models = Path("models")
 split_date = "2025-09-01"
@@ -32,13 +32,13 @@ def profit(charge, discharge, prices):
 
 
 def backtest(actual, forecast):
-    daily = []
+    daily = {}
     for day, prices in actual.groupby(actual.index.date):
         if len(prices) != 48:
             continue
         charge, discharge = schedule_day(forecast.loc[prices.index].to_numpy())
-        daily.append(profit(charge, discharge, prices.to_numpy()))
-    return np.array(daily)
+        daily[pd.Timestamp(day)] = profit(charge, discharge, prices.to_numpy())
+    return pd.Series(daily)
 
 
 if __name__ == "__main__":
@@ -63,3 +63,16 @@ if __name__ == "__main__":
     print(f"test days: {len(results['perfect foresight'])}\n")
     for name, daily in results.items():
         print(f"{name:28} £{daily.sum():>8,.0f}   {daily.sum() / best:6.1%} of perfect   losing days: {(daily < 0).sum()}")
+    save_table(pd.DataFrame(results), "backtest_daily")
+    save_table(pd.DataFrame({
+        "actual": test["price"],
+        "LightGBM": lightgbm,
+        "recent day": test["price_lag_recent"],
+        "spike level": spike_level,
+        "spike": (test["price"] > spike_level).astype(int),
+        "spike probability": spike_prob,
+        "flagged": (spike_prob >= spike_model["cutoff"]).astype(int),
+        "persistence": (test["price_excess_recent"] > spike_model["threshold"]).astype(int),
+        "cut-off": spike_model["cutoff"],
+    }), "price_forecasts")
+    print("saved backtest_daily and price_forecasts")

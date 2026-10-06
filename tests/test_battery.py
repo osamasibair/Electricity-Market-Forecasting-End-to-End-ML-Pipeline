@@ -1,7 +1,8 @@
 import numpy as np
+import pandas as pd
 import pytest
 
-from battery_backtest import capacity, efficiency, profit, schedule_day, step
+from battery_backtest import backtest, capacity, efficiency, profit, schedule_day, step
 
 
 def test_example_day_profit():
@@ -24,3 +25,10 @@ def test_limits_respected():
     assert stored.min() >= -1e-6
     assert discharge.sum() <= capacity + 1e-6
     assert (charge + discharge).max() <= step + 1e-6
+
+def test_backtest_scores_each_full_day():
+    index = pd.date_range("2026-01-05", periods=96, freq="30min")
+    prices = pd.Series(np.tile(np.r_[np.full(24, 50.0), np.full(24, 100.0)], 2), index=index)
+    daily = backtest(prices, prices)
+    assert list(daily.index) == [pd.Timestamp("2026-01-05"), pd.Timestamp("2026-01-06")]
+    assert (daily > 0).all()
