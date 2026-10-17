@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from monitor import daily_report, psi, live_adjustment
+from monitor import daily_report, live_adjustment, psi
 
 
 def test_psi_is_small_for_the_same_distribution_and_large_for_a_shift():

@@ -30,11 +30,6 @@ if __name__ == "__main__":
     demand = latest_demand(f"{today - pd.Timedelta(days=history_days):%Y-%m-%d}", f"{today:%Y-%m-%d}")
     df = build_features(latest_weather().join(demand))
 
-    forecast = predict_day(load_model(), df, tomorrow, load_quantile_models())
-    if len(forecast) < 46:
-        raise SystemExit(f"only {len(forecast)} half-hours of {tomorrow} could be forecast, so some recent data is missing")
-    forecast["baseline"] = df.loc[forecast.index, "demand_lag_336"]
-
     try:
         earlier = load_table("live_forecasts")
         earlier["actual"] = demand.reindex(earlier.index).fillna(earlier["actual"])  
