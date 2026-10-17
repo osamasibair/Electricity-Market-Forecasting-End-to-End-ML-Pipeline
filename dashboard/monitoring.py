@@ -14,6 +14,11 @@ def load_optional(name):
 
 st.title("Demand forecast monitoring")
 
+briefing = load_optional("live_briefing")
+if briefing is not None:
+    st.info(briefing["briefing"].iloc[-1])
+    st.caption("Written by Claude from the latest figures. Every number in it is checked against those figures before it is saved.")
+
 daily = load_table("monitoring_daily")
 drift = load_table("monitoring_drift")
 live = load_optional("live_forecasts")

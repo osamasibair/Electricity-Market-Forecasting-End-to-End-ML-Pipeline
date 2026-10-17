@@ -1,6 +1,8 @@
 """Forecast tomorrows demand from the latest data, and score earlier forecasts once the actual demand is known."""
 import pandas as pd
+from anthropic import APIError
 
+from briefing import write_briefing
 from db import load_table, save_table
 from features import build_features
 from ingest import fetch_demand, fetch_weather_forecast
@@ -60,3 +62,14 @@ if __name__ == "__main__":
         print(f"scored {len(daily)} live days: mean MAPE {daily['mape'].mean():.2f}% (baseline {daily['baseline_mape'].mean():.2f}%), mean coverage {daily['coverage'].mean():.1f}%")
     else:
         print("no complete days to score yet")
+
+    try:
+        briefing = write_briefing(forecast, daily, extra)
+    except APIError as error:
+        briefing = None
+        print(f"briefing skipped: {error}")
+    if briefing is None:
+        print("no briefing written")
+    else:
+        save_table(briefing, "live_briefing")
+        print(f"briefing: {briefing['briefing'].iloc[0]}")
