@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import numpy as np
 import pandas as pd
 
-from briefing import facts_text, forecast_facts, grounded, write_briefing
+from briefing import facts_text, forecast_facts, grounded, ungrounded, write_briefing
 
 
 class FakeClient:
@@ -14,7 +14,7 @@ class FakeClient:
 
     def create(self, **request):
         self.requests.append(request)
-        return SimpleNamespace(content=[SimpleNamespace(type="text", text=self.reply)])
+        return SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(type="text", text=self.reply)])
 
 
 def make_forecast():
@@ -70,3 +70,8 @@ def test_write_briefing_skips_without_an_api_key(monkeypatch):
 
 def test_facts_text_lists_one_fact_per_line():
     assert facts_text({"a": "1", "b": "2"}) == "a: 1\nb: 2"
+
+
+def test_ungrounded_lists_the_numbers_that_are_not_in_the_facts():
+    facts = "forecast peak: 35000 MW at 18:30"
+    assert ungrounded("Demand peaks at 35000 MW at 6:30pm.", facts) == ["6"]

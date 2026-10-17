@@ -7,9 +7,10 @@ import pandas as pd
 model_name = "claude-haiku-5-5"
 
 instructions = (
-    "You write a briefing of two or three sentences for the person who runs a uk electricity demand forecasting system. "
-    "Use only the facts you are given. Copy every number exactly as written with its unit and do not convert units, "
-    "add numbers or guess at causes the facts don't mention. If there are alerts start with them."
+    "You write a briefing of two or three sentences for the person who runs a uk electricity demand forecasting system."
+    "Use only the facts you are given. Copy every number exactly as written with its unit and do not convert units,"
+    "add numbers or guess at causes the facts dont mention. Write times in 24 hour form exactly as given."
+    "If there are alerts start with them."
 )
 
 
@@ -49,23 +50,31 @@ def numbers(text):
     return [n.replace(",", "") for n in re.findall(r"\d[\d,]*(?:\.\d+)?", text)]
 
 
-def grounded(reply, facts):
+def ungrounded(reply, facts):
     allowed = [float(n) for n in numbers(facts)]
+    missing = []
     for found in numbers(reply):
         decimals = len(found.split(".")[1]) if "." in found else 0
         if not any(round(fact, decimals) == float(found) for fact in allowed):
-            return False
-    return True
+            missing.append(found)
+    return missing
+
+
+def grounded(reply, facts):
+    return not ungrounded(reply, facts)
 
 
 def ask_claude(client, facts):
     response = client.messages.create(
         model=model_name,
-        max_tokens=400,
+        max_tokens=2000,
         system=instructions,
         messages=[{"role": "user", "content": f"Facts:\n{facts}"}],
     )
-    return "".join(block.text for block in response.content if block.type == "text").strip()
+    reply = "".join(block.text for block in response.content if block.type == "text").strip()
+    if not reply:
+        print(f"Claude returned no text (stop reason: {response.stop_reason})")
+    return reply
 
 
 def write_briefing(forecast, daily, extra, client=None):
@@ -76,6 +85,10 @@ def write_briefing(forecast, daily, extra, client=None):
         client = anthropic.Anthropic()
     facts = facts_text(forecast_facts(forecast, daily, extra))
     reply = ask_claude(client, facts)
-    if not reply or not grounded(reply, facts):
+    if not reply:
+        return None
+    missing = ungrounded(reply, facts)
+    if missing:
+        print(f"briefing rejected, these numbers aren't in the facts: {', '.join(missing)}\nreply: {reply}")
         return None
     return pd.DataFrame({"briefing": [reply], "facts": [facts]}, index=[forecast.index.min()])
