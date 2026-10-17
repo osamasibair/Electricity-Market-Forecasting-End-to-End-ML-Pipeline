@@ -9,7 +9,7 @@ import requests
 
 raw = Path("data/raw")
 elexon = "https://data.elexon.co.uk/bmrs/api/v1/demand/outturn"
-weather = "https://archive-api.open-meteo.com/v1/archive"
+weather = "https://historical-forecast-api.open-meteo.com/v1/forecast"
 weather_forecast = "https://api.open-meteo.com/v1/forecast"
 market_index = "https://data.elexon.co.uk/bmrs/api/v1/balancing/pricing/market-index"
 wind_solar = "https://data.elexon.co.uk/bmrs/api/v1/generation/actual/per-type/wind-and-solar"

@@ -18,6 +18,17 @@ def psi(expected, actual, bins=10):
     return float(np.sum((a - e) * np.log(a / e)))
 
 
+def live_adjustment(live, days=30, coverage=0.8):
+    scored = live.dropna(subset=["actual"])
+    if len(scored) < 48 * 7:
+        return 0.0
+    recent = scored[scored.index > scored.index.max() - pd.Timedelta(days=days)]
+    extra = recent["extra"].fillna(0) if "extra" in recent else 0
+    base_low, base_high = recent["low"] + extra, recent["high"] - extra
+    scores = np.maximum(base_low - recent["actual"], recent["actual"] - base_high)
+    return max(float(np.quantile(scores, coverage)), 0.0)
+
+
 def daily_report(results, baseline):
     day = results.index.tz_localize("UTC").tz_convert("Europe/London").date
     actual = results["actual"]

@@ -4,7 +4,7 @@ import pandas as pd
 from db import load_table, save_table
 from features import build_features
 from ingest import fetch_demand, fetch_weather_forecast
-from monitor import daily_report
+from monitor import daily_report, live_adjustment
 from predict import load_model, load_quantile_models, predict_day
 
 history_days = 21
@@ -37,12 +37,26 @@ if __name__ == "__main__":
 
     try:
         earlier = load_table("live_forecasts")
-        live = pd.concat([earlier[~earlier.index.isin(forecast.index)], forecast]).sort_index()
+        earlier["actual"] = demand.reindex(earlier.index).fillna(earlier["actual"])  
+        extra = live_adjustment(earlier)  
     except ValueError:
-        live = forecast
+        earlier, extra = None, 0.0  
+
+    quantile = load_quantile_models()  
+    quantile = {**quantile, "adjustment": quantile["adjustment"] + extra}  
+    forecast = predict_day(load_model(), df, tomorrow, quantile)  
+    if len(forecast) < 46:
+        raise SystemExit(f"only {len(forecast)} half-hours of {tomorrow} could be forecast, so some recent data is missing")
+    forecast["baseline"] = df.loc[forecast.index, "demand_lag_336"]
+    forecast["extra"] = extra  
+
+    if earlier is None:  
+        live = forecast 
+    else: 
+        live = pd.concat([earlier[~earlier.index.isin(forecast.index)], forecast]).sort_index()
     live["actual"] = demand.reindex(live.index).fillna(live["actual"])
     save_table(live, "live_forecasts")
-    print(f"forecast {tomorrow}: {forecast['forecast'].min():.0f} to {forecast['forecast'].max():.0f} MW")
+    print(f"forecast {tomorrow}: {forecast['forecast'].min():.0f} to {forecast['forecast'].max():.0f} MW, intervals widened by {extra:.0f} MW from recent live errors") 
 
     scored = live.dropna(subset=["actual"])
     daily = daily_report(scored, scored["baseline"])
