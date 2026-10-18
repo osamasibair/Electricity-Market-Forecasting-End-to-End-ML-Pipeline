@@ -13,7 +13,7 @@ An end to end machine learning pipeline that forecasts Great Britain's half hour
 - **Spikes: LightGBM classifier that ranks spike risk 2.5x better than persistence (average precision 0.43 vs 0.17, ROC AUC 0.90).**
 - **Backtest: a simulated 1 MW / 2 MWh battery scheduled from the price forecast earns 77% of the perfect foresight profit, against 52% for a baseline forecast and 74% for a simple average of the last 7 days prices.**
 
-**Stack:** Python, pandas, LightGBM, FastAPI, Docker, pytest, SciPy, Ruff, GitHub Actions, PostgreSQL, SQLAlchemy, Docker Compose, MLFlow, Streamlit, Google Cloud (Cloud Run, Artifact Registry, Cloud Storage, Secret Manager, Workload Identity Federation), Neon.
+**Stack:** Python, pandas, LightGBM, FastAPI, Docker, pytest, SciPy, Ruff, GitHub Actions, PostgreSQL, SQLAlchemy, Docker Compose, MLFlow, Streamlit, Google Cloud (Cloud Run, Artifact Registry, Cloud Storage, Secret Manager, Workload Identity Federation), Neon, Anthropic Claude API.
 
 ---
 
@@ -110,6 +110,8 @@ The demand model was replayed over the test year day by day, as if each day had 
 
 ### Live forecasts
 
+Each morning the daily job also asks Claude (Haiku, Anthropic API) to turn the day's figures, meaning tomorrow's peak and low, interval width, recent accuracy against the baseline, coverage and any alerts, into a short english briefing shown at the top of the dashboard. Before it is saved, every number in the briefing is checked against the figures Claude was given. If any number doesn't match (allowing for rounding), the briefing is rejected and the reason is logged, so a hallucinated figure can't reach the dashboard. If the API is unavailable, the forecast job carries on without a briefing.
+
 Since October 2026, a scheduled job forecasts the next days demand every morning from the latest Elexon demand and an Open Meteo **weather forecast**, the inputs a real forecaster would have. Each forecast is scored once that days actual demand is published, with the same daily accuracy, baseline and coverage checks as the replay above, and shown on the live dashboard. Because the model was trained on actual weather, live accuracy is expected to be somewhat worse than the 5.03% test result; the live scores measure by how much.
 
 ### What the data shows about prices
@@ -152,6 +154,7 @@ python src/spikes.py           # train the spike classifier and choose its cut o
 python src/battery_backtest.py # backtest battery trading strategies and save the results for the dashboard
 python src/monitor.py          # replay the test year and save the monitoring tables
 python src/live.py             # forecast tomorrow from live data and score earlier live forecasts
+Set `ANTHROPIC_API_KEY` to also write the daily Claude briefing. Without it, `live.py` skips the briefing and runs as normal.
 ```
 
 Each training script logs its settings, results and model to MLflow. Open `http://localhost:5001` to browse and compare runs, and to see model versions.
@@ -229,6 +232,8 @@ flowchart LR
     retrain["Weekly retrain"] -->|passes quality gate| bucket
     retrain --> deploy
     bucket --> daily["Daily forecast job"]
+    daily -->|figures| claude["Claude API"]
+    claude -->|briefing, number-checked| daily
     daily --> db[("Neon PostgreSQL")]
     api --> db
     dash --> db
@@ -253,12 +258,13 @@ flowchart LR
 | Backtest | `src/battery_backtest.py` | Plans each day's battery schedule from a price forecast with linear programming and scores it on real prices over the test year |
 | Monitor | `src/monitor.py` | Replays the test year day by day: daily error against the baseline, interval coverage and monthly input drift, saved to PostgreSQL |
 | Live | `src/live.py` | Fetches the last 21 days of demand and a weather forecast, forecasts tomorrow, and scores earlier live forecasts once their actual demand is known |
+| Briefing | `src/briefing.py` | Sends the day's figures to Claude for a short english briefing, and rejects it if it contains any number not in those figures |
 | Dashboard | `dashboard/app.py` | Streamlit dashboard with live demand monitoring page (forecasts, accuracy, coverage, drift and freshness, with alerts) and research pages for the price forecast, the spike classifier and the battery backtest |
 | Evaluate | `src/evaluate.py` | MAE, RMSE, MAPE and quantile loss |
 | Tracking | `src/tracking.py` | Logs each training runs settings, metrics and model files to MLflow, and registers the demand, price and spike models |
 | Predict | `src/predict.py` | Loads the saved models and forecasts a chosen day with interval |
 | Serve | `api/main.py` | FastAPI service, packaged with the `Dockerfile` and run alongside PostgreSQL with `docker-compose.yml` |
-| Test | `tests/` | Unit tests for metrics, features, the spike definition, the battery, the monitoring, and the database, plus API tests |
+| Test | `tests/` | Unit tests for metrics, features, the spike definition, the battery, the monitoring, and the database and the briefing (using a mocked Claude client), plus API tests |
 | CI | `.github/workflows/tests.yml` | Lints, starts PostgreSQL, runs the tests with coverage, and starts the API and dashboard with Docker Compose on every push |
 | Scheduled retraining | `.github/workflows/retrain.yml` | Every Monday, downloads the latest data, rebuilds the features and runs the retraining, publishing if the quality gate is passed |
 | Deploy | `.github/workflows/deploy.yml` | After CI passes on `main`, or after a retrain, builds and pushes the image and deploys the API and dashboard to cloud run |
@@ -270,7 +276,7 @@ flowchart LR
 - **Weather:** hourly temperature, wind speed and shortwave radiation for London from the Open Meteo historical archive, interpolated to half hourly. Live forecasts use the Open Meteo forecast API instead, because the archive runs about 5 days behind.
 - **Prices:** Market Index Price (APX/EPEX) from the Elexon BMRS API. Six missing half hours and 34 half hours with zero traded volume were filled by interpolation.
 - **Wind and solar generation:** actual onshore wind, offshore wind and solar generation from the Elexon BMRS API. 4,383 republished duplicate rows were removed (keeping the latest version), 863 missing half-hours (longest gap 7 hours) were filled by interpolation, and 15 small negative values were set to zero.
-- **Storage:** raw downloads are kept as CSV files, untouched. Everything from cleaning onwards is stored in PostgreSQL tables: `dataset`, `market`, `features` and `price_features`, plus `monitoring_daily` and `monitoring_drift` for the replay, `live_forecasts` and `monitoring_live` for live forecasts, and `backtest_daily` and `price_forecasts` for the research pages.
+- **Storage:** raw downloads are kept as CSV files, untouched. Everything from cleaning onwards is stored in PostgreSQL tables: `dataset`, `market`, `features` and `price_features`, plus `monitoring_daily` and `monitoring_drift` for the replay, `live_forecasts`, `live_briefing` and `monitoring_live` for live forecasts, and `backtest_daily` and `price_forecasts` for the research pages.
 
 Validation found two days each missing one settlement period (2023-07-17 period 45 and 2023-12-29 period 8), which were filled by time interpolation.
 
@@ -332,6 +338,8 @@ The price model uses the demand, weather and calendar features (without `dayofye
 
 **Keyless, gated continuous deployment.** GitHub actions logs in to google cloud with workload identity federation: google trusts GitHubs tokens, but only from this repository, so no long lived key is stored anywhere. A dedicated service account can only deploy to cloud run, push to this projects registry and read and write the models bucket. Deploys happen only after CI passes, and each image is tagged with its commit, so any live version can be traced or rolled back. Models live in a cloud storage bucket rather than in git, and a retrained model reaches production only if it passes the quality gate.
 
+**Grounded LLM briefings.** Language models can write convincing numbers that are wrong, which matters in a forecasting system. Claude is given only a short list of facts computed by the pipeline and told to copy numbers exactly, and the code then extracts every number from its reply and checks each one against those facts, allowing for rounding. A reply with any unmatched number is discarded. The model never sees raw data or produces forecasts itself, so it explains results rather than creating them. The API key lives in a GitHub Actions secret, the key is scoped to a single workspace, and the tests use a mocked client, so CI runs without a key or any cost.
+
 ---
 
 ## Limitations
@@ -345,6 +353,7 @@ The price model uses the demand, weather and calendar features (without `dayofye
 - The price model has no gas price input, although gas usually sets GB power prices. The 7-day average price captures its effect only indirectly.
 - Half hourly prices are noisy, and extreme spikes and negative prices remain hard to predict.
 - A spike probability cut off chosen on one year transfers imperfectly to a more volatile year, in practice it would need recalibrating regularly.
+- The briefing check verifies that every number came from the source figures, but not that it's attached to the right label (a real MAPE figure described as coverage would pass), and it can't check numbers written as words.
 
 ---
 
