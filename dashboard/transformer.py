@@ -1,0 +1,102 @@
+"""Transformer page, the PatchTST transformer against LightGBM and a pretrained Chronos model over the test year."""
+import altair as alt
+import pandas as pd
+import streamlit as st
+
+from db import load_table
+
+alt.data_transformers.disable_max_rows()
+names = {
+    "baseline": "Same time last week",
+    "chronos": "Chronos (pretrained, zero shot)",
+    "patchtst": "PatchTST (trained from scratch)",
+    "lightgbm": "LightGBM",
+}
+colours = {"Actual": "#888780", "LightGBM": "#eb6834", "PatchTST": "#2a78d6", "Chronos": "#1baf7a"}
+
+
+def load_optional(name):
+    try:
+        return load_table(name)
+    except ValueError:
+        return None
+
+
+def scores(forecasts):
+    actual = forecasts["actual"]
+    rows = []
+    for key, label in names.items():
+        if key not in forecasts:
+            continue
+        error = forecasts[key] - actual
+        row = {"Model": label, "MAE (MW)": error.abs().mean(), "RMSE (MW)": (error ** 2).mean() ** 0.5,
+               "MAPE (%)": (error.abs() / actual).mean() * 100}
+        if f"{key}_low" in forecasts:
+            low, high = forecasts[f"{key}_low"], forecasts[f"{key}_high"]
+            row["In 80% range (%)"] = ((actual >= low) & (actual <= high)).mean() * 100
+            row["Average width (MW)"] = (high - low).mean()
+        rows.append(row)
+    table = pd.DataFrame(rows).set_index("Model").sort_values("MAPE (%)", ascending=False)
+    return table.round({"MAE (MW)": 0, "RMSE (MW)": 0, "MAPE (%)": 2, "In 80% range (%)": 1, "Average width (MW)": 0})
+
+
+def week_chart(week):
+    data = week.rename_axis("time").reset_index()
+    band = alt.Chart(data).mark_area(opacity=0.2, color=colours["PatchTST"]).encode(
+        x=alt.X("time:T", title=None, axis=alt.Axis(format="%a %d %b", tickCount="day")),
+        y=alt.Y("patchtst_low:Q", title="Demand (MW)", scale=alt.Scale(zero=False)), y2="patchtst_high:Q")
+    columns = {"actual": "Actual", "lightgbm": "LightGBM", "patchtst": "PatchTST", "chronos": "Chronos"}
+    lines = data.melt("time", [c for c in columns if c in data], var_name="model", value_name="demand")
+    lines["model"] = lines["model"].map(columns)
+    shown = [name for name in colours if name in set(lines["model"])]
+    line = alt.Chart(lines).mark_line(strokeWidth=1.8).encode(
+        x="time:T", y="demand:Q",
+        color=alt.Color("model:N", title=None, sort=shown,
+                        scale=alt.Scale(domain=shown, range=[colours[name] for name in shown])),
+        tooltip=[alt.Tooltip("time:T", format="%a %d %b %H:%M"), "model:N", alt.Tooltip("demand:Q", format=",.0f")])
+    return (band + line).properties(height=380)
+
+
+def influence_chart(influence):
+    data = influence.assign(start=-influence["hours_before_midnight"], end=-influence["hours_before_midnight"] + 0.5)
+    return alt.Chart(data).mark_rect().encode(
+        x=alt.X("start:Q", title="Hours before tomorrow's midnight", scale=alt.Scale(domain=[-184, -16], nice=False),
+                axis=alt.Axis(values=list(range(-168, 0, 24)), labelExpr="-datum.value")),
+        x2="end:Q",
+        y=alt.Y("forecast_time:O", title="Forecast time tomorrow", axis=alt.Axis(values=[f"{h:02d}:00" for h in range(0, 24, 3)])),
+        color=alt.Color("influence:Q", title="MW per MW", scale=alt.Scale(scheme="blues")),
+        tooltip=["forecast_time:O", alt.Tooltip("hours_before_midnight:Q", title="hours before midnight"),
+                 alt.Tooltip("influence:Q", format=".4f")],
+    ).properties(height=380)
+
+
+st.title("Transformer challenger")
+st.caption("PatchTST is a transformer implemented from the paper in PyTorch and trained from scratch on this data. It is compared with the LightGBM model and with Chronos-Bolt, Amazon's pretrained time series model, used without any training. Every model sees demand up to 08:00 the day before plus tomorrow's weather and calendar, gets the same conformal calibration, and is scored on the same test days (1 September 2025 to 31 August 2026, clock change days skipped).")
+
+forecasts = load_optional("transformer_forecasts")
+if forecasts is None:
+    st.info("No transformer results yet. Run src/train_patchtst.py to create them.")
+    st.stop()
+forecasts = forecasts.set_axis(forecasts.index.tz_localize("UTC").tz_convert("Europe/London").tz_localize(None))
+
+st.dataframe(scores(forecasts))
+st.caption("Lower error is better, and a well calibrated 80% range contains about 80% of actual values. The transformer beats the pretrained model but not LightGBM, so LightGBM stays in production.")
+
+first, last = forecasts.index.min().date(), forecasts.index.max().date()
+default = min(max(pd.Timestamp("2026-01-05").date(), first), last)
+start = st.date_input("Week starting", value=default, min_value=first, max_value=last)
+week = forecasts.loc[pd.Timestamp(start):pd.Timestamp(start) + pd.Timedelta(days=7) - pd.Timedelta(minutes=30)]
+st.altair_chart(week_chart(week), width="stretch")
+st.caption("Forecasts against actual demand, with the PatchTST 80% range shaded. Pick any week in the test year: the models often make different mistakes, which is why an ensemble is the next experiment.")
+
+influence = load_optional("transformer_influence")
+if influence is not None:
+    st.subheader("What the transformer looks at")
+    st.altair_chart(influence_chart(influence), width="stretch")
+    st.caption("How many MW each of tomorrow's forecasts moves per MW change in each past half-hour, averaged over every test day (the gradient of the forecast). The stripes are vertical: each past half-hour affects every forecast about equally, so the transformer uses the past week mainly to set tomorrow's level, with the most recent hours mattering most, rather than matching times of day as LightGBM's lag features do.")
+
+training = load_optional("transformer_training")
+if training is not None:
+    st.subheader("Training")
+    st.line_chart(training.rename_axis("epoch").rename(columns={"loss": "calibration-year loss"}), x_label="Epoch", y_label="Loss")
+    st.caption(f"The loss on the calibration year after each pass over the training data. Training stopped when it stopped improving, and the best epoch ({int(training['loss'].idxmin())}) was kept.")

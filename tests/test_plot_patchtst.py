@@ -5,7 +5,7 @@ import torch
 from features import build_features
 from forecast_windows import day_windows, history_steps, horizon, windows
 from patchtst import PatchTSTForecaster
-from plot_patchtst import influence, pick_week
+from plot_patchtst import influence, influence_table, pick_week
 
 # see test_patchtst.py: one thread stops PyTorch freezing on macOS when LightGBM ran earlier in the same pytest session
 torch.set_num_threads(1)
@@ -41,3 +41,11 @@ def test_pick_week_defaults_to_the_week_with_the_highest_peak():
     df.loc[df.index[(df.index >= "2025-12-10") & (df.index < "2025-12-11")], "demand"] += 9000
     start, _ = pick_week(df, day_windows(df.index), None)
     assert start == pd.Timestamp("2025-12-08", tz="Europe/London")
+
+def test_influence_table_has_one_row_per_forecast_and_past_half_hour():
+    grads = np.arange(horizon * history_steps, dtype=float).reshape(horizon, history_steps)
+    table = influence_table(grads)
+    assert len(table) == horizon * history_steps
+    assert table["forecast_time"].iloc[0] == "00:00" and table["forecast_time"].iloc[-1] == "23:30"
+    assert table["hours_before_midnight"].max() == 184 and table["hours_before_midnight"].min() == 16.5
+    assert table["influence"].iloc[-1] == grads[-1, -1]

@@ -140,3 +140,10 @@ def test_chronos_forecast_uses_only_history_before_the_cutoff_and_keeps_the_fore
     assert out.shape == (3, horizon, 3)
     assert out[0, 0, 0] == gap_steps
     assert pipeline.last_values[-1] == pytest.approx(df["demand"].iloc[starts[-1] - gap_steps - 1])
+
+def test_forecast_table_keeps_every_model_next_to_the_actual_demand():
+    from train_patchtst import forecast_table
+    index = pd.date_range("2025-09-01", periods=4, freq="30min")
+    table = forecast_table(index, np.array([1.0, 2, 3, 4]), {"lightgbm": np.zeros(4), "patchtst": np.ones(4)})
+    assert list(table.columns) == ["actual", "lightgbm", "patchtst"]
+    assert table.index.equals(index) and table["actual"].iloc[-1] == 4

@@ -8,8 +8,9 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 
-from db import load_table
+from db import load_table, save_table
 from evaluate import metrics
 from forecast_windows import day_windows, horizon, windows
 from tracking import log_run
@@ -56,6 +57,7 @@ def lightgbm_part():
         "target": target,
         "baseline": summary(test[target].to_numpy(), test["demand_lag_336"].to_numpy()),
         "lightgbm": summary(test[target].to_numpy(), point, low, high),
+        "forecasts": {"baseline": test["demand_lag_336"].to_numpy(), "lightgbm": point, "lightgbm_low": low, "lightgbm_high": high},
     }
 
 
@@ -75,7 +77,9 @@ def patchtst(df, calib_days, test_days, actual_calib, actual_test, calibration_s
     final.fit(df, windows(df.index, last=split_date, stride=final.settings["train_stride"]), epochs=early.best_epochs, verbose=True)
     test = final.predict(df, test_days).reshape(-1, 3)
     print(f"patchtst: trained twice in {time.perf_counter() - started:.0f}s")
-    return summary(actual_test, test[:, 1], test[:, 0] - adjustment, test[:, 2] + adjustment), final, adjustment, early.valid_losses
+    forecasts = {"patchtst": test[:, 1], "patchtst_low": test[:, 0] - adjustment, "patchtst_high": test[:, 2] + adjustment}  
+    result = summary(actual_test, forecasts["patchtst"], forecasts["patchtst_low"], forecasts["patchtst_high"])  
+    return result, final, adjustment, early.valid_losses, forecasts  
 
 
 def chronos(df, calib_days, test_days, actual_calib, actual_test):
@@ -92,7 +96,13 @@ def chronos(df, calib_days, test_days, actual_calib, actual_test):
     calib = chronos_forecast(df, calib_days, pipeline).reshape(-1, 3)
     adjustment = conformal_adjustment(actual_calib, calib[:, 0], calib[:, 2])
     test = chronos_forecast(df, test_days, pipeline).reshape(-1, 3)
-    return summary(actual_test, test[:, 1], test[:, 0] - adjustment, test[:, 2] + adjustment)
+    forecasts = {"chronos": test[:, 1], "chronos_low": test[:, 0] - adjustment, "chronos_high": test[:, 2] + adjustment} 
+    return summary(actual_test, forecasts["chronos"], forecasts["chronos_low"], forecasts["chronos_high"]), forecasts  
+
+
+def forecast_table(index, actual, forecasts):  
+    """Every model's test-period forecasts in one table, for the dashboard.""" 
+    return pd.DataFrame({"actual": actual, **forecasts}, index=index) 
 
 
 if __name__ == "__main__":
@@ -105,6 +115,7 @@ if __name__ == "__main__":
         first = pool.submit(lightgbm_part).result()
     split_date, calibration_start, target = first["split_date"], first["calibration_start"], first["target"]
     results = {"baseline": first["baseline"], "lightgbm": first["lightgbm"]}
+    forecasts = dict(first["forecasts"])
     print(f"lightgbm: done, MAPE {results['lightgbm']['mape']:.2f}%")
 
     df = load_table("features")
@@ -114,12 +125,14 @@ if __name__ == "__main__":
     actual_test = df[target].to_numpy()[rows(test_days)]
     print(f"calibration: {len(calib_days)} days from {calibration_start}, test: {len(test_days)} days from {split_date}")
 
-    results["patchtst"], model, adjustment, early_losses = patchtst(
+    results["patchtst"], model, adjustment, early_losses, patchtst_forecasts = patchtst(
         df, calib_days, test_days, actual_calib, actual_test, calibration_start, split_date, {})
+    forecasts.update(patchtst_forecasts)
     if not args.skip_chronos:
         chronos_result = chronos(df, calib_days, test_days, actual_calib, actual_test)
         if chronos_result is not None:
-            results["chronos"] = chronos_result
+            results["chronos"], chronos_forecasts = chronos_result 
+            forecasts.update(chronos_forecasts) 
 
     print(f"\n{'model':10} {'MAE':>7} {'RMSE':>7} {'MAPE':>7} {'in range':>9} {'width':>8}")
     for name, m in results.items():
@@ -129,6 +142,10 @@ if __name__ == "__main__":
     models.mkdir(exist_ok=True)
     model.save(models / "patchtst.pt", adjustment=adjustment, valid_losses=early_losses, split_date=split_date)
     print("saved models/patchtst.pt")
+
+    save_table(forecast_table(df.index[rows(test_days)], actual_test, forecasts), "transformer_forecasts") 
+    save_table(pd.DataFrame({"loss": early_losses}, index=range(1, len(early_losses) + 1)), "transformer_training") 
+    print("saved transformer_forecasts and transformer_training for the dashboard") 
 
     log_run(
         experiment="demand-patchtst",

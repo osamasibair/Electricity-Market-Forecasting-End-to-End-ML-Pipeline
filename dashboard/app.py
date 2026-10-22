@@ -13,6 +13,7 @@ pages = st.navigation({
         st.Page("price_forecast.py", title="Price forecast"),
         st.Page("price_spikes.py", title="Price spikes"),
         st.Page("battery.py", title="Battery backtest"),
+        st.Page("transformer.py", title="Transformer"),
     ],
 })
 pages.run()

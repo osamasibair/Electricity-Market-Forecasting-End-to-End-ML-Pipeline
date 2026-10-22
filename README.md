@@ -6,7 +6,7 @@
 
 An end to end machine learning pipeline that forecasts Great Britain's half hourly electricity demand and price one day ahead, from raw public data to a tested, containerised API, and backtests a battery trading strategy on the price forecasts.
 
-**Live:** [API docs](https://electricity-api-xqiuvbbyca-nw.a.run.app/docs) · [Latest forecast](https://electricity-api-xqiuvbbyca-nw.a.run.app/forecast/latest) · [Dashboard](https://electricity-dashboard-xqiuvbbyca-nw.a.run.app) (live monitoring, plus price, spike and backtest results)
+**Live:** [API docs](https://electricity-api-xqiuvbbyca-nw.a.run.app/docs) · [Latest forecast](https://electricity-api-xqiuvbbyca-nw.a.run.app/forecast/latest) · [Dashboard](https://electricity-dashboard-xqiuvbbyca-nw.a.run.app) (live monitoring, plus price, spike, backtest and transformer results)
 
 - **Demand: LightGBM day ahead model: 5.08% MAPE, about 40% lower error than a same-time-last-week baseline (8.40%), with 80% prediction intervals achieving 81.9% coverage.**
 - **Price: LightGBM model with £21.50/MWh MAE, 15% lower than the best naive baseline, using wind, solar and net demand to forecast cheap and expensive periods.**
@@ -305,7 +305,7 @@ flowchart LR
 | Monitor | `src/monitor.py` | Replays the test year day by day: daily error against the baseline, interval coverage and monthly input drift, saved to PostgreSQL |
 | Live | `src/live.py` | Fetches the last 21 days of demand and a weather forecast, forecasts tomorrow, and scores earlier live forecasts once their actual demand is known |
 | Briefing | `src/briefing.py` | Sends the day's figures to Claude for a short english briefing, and rejects it if it contains any number not in those figures |
-| Dashboard | `dashboard/app.py` | Streamlit dashboard with live demand monitoring page (forecasts, accuracy, coverage, drift and freshness, with alerts) and research pages for the price forecast, the spike classifier and the battery backtest |
+| Dashboard | `dashboard/app.py` | Streamlit dashboard with live demand monitoring page (forecasts, accuracy, coverage, drift and freshness, with alerts) and research pages for the price forecast, the spike classifier, the battery backtest and the transformer comparison |
 | Evaluate | `src/evaluate.py` | MAE, RMSE, MAPE and quantile loss |
 | Tracking | `src/tracking.py` | Logs each training runs settings, metrics and model files to MLflow, and registers the demand, price and spike models |
 | Predict | `src/predict.py` | Loads the saved models and forecasts a chosen day with interval |
@@ -322,7 +322,7 @@ flowchart LR
 - **Weather:** Hourly temperature, wind speed and shortwave radiation for London from the Open Meteo historical forecast API, interpolated to half hourly. These are archived weather forecasts rather than measured weather, so the model trains on the same kind of input it gets live, where the daily job uses the Open Meteo forecast API. Training on measured weather and serving on forecasts would make the model rely on weather inputs more than live forecasts can support.
 - **Prices:** Market Index Price (APX/EPEX) from the Elexon BMRS API. Six missing half hours and 34 half hours with zero traded volume were filled by interpolation.
 - **Wind and solar generation:** Actual onshore wind, offshore wind and solar generation from the Elexon BMRS API. 4,383 republished duplicate rows were removed (keeping the latest version), 863 missing half-hours (longest gap 7 hours) were filled by interpolation, and 15 small negative values were set to zero.
-- **Storage:** Raw downloads are kept as CSV files, untouched. Everything from cleaning onwards is stored in PostgreSQL tables: `dataset`, `market`, `features` and `price_features`, plus `monitoring_daily` and `monitoring_drift` for the replay, `live_forecasts`, `live_briefing` and `monitoring_live` for live forecasts, and `backtest_daily` and `price_forecasts` for the research pages.
+- **Storage:** Raw downloads are kept as CSV files, untouched. Everything from cleaning onwards is stored in PostgreSQL tables: `dataset`, `market`, `features` and `price_features`, plus `monitoring_daily` and `monitoring_drift` for the replay, `live_forecasts`, `live_briefing` and `monitoring_live` for live forecasts, `backtest_daily`, `price_forecasts`, `transformer_forecasts`, `transformer_training` and `transformer_influence` for the research pages.
 
 Validation found two days each missing one settlement period (2023-07-17 period 45 and 2023-12-29 period 8), which were filled by time interpolation.
 

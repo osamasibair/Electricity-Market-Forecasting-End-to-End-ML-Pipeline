@@ -14,7 +14,7 @@ import pandas as pd
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.ticker import FuncFormatter
 
-from db import load_table
+from db import load_table, save_table
 from forecast_windows import day_windows, gap_steps, history_steps, horizon
 
 docs, models = Path("docs"), Path("models")
@@ -116,6 +116,14 @@ def influence(df, model, starts):
         grads[step] = gradient.abs().mean(dim=0).numpy()
     return grads
 
+def influence_table(grads):
+    """The influence map in long form for the dashboard, one row per forecast half hour and past half hour."""
+    step, past = np.meshgrid(np.arange(horizon), np.arange(history_steps), indexing="ij")
+    return pd.DataFrame({
+        "forecast_time": [f"{s // 2:02d}:{30 * (s % 2):02d}" for s in step.ravel()],
+        "hours_before_midnight": (gap_steps + history_steps - past.ravel()) / 2,
+        "influence": grads.ravel(),
+    })
 
 def influence_plot(grads):
     first = -(gap_steps + history_steps) / 2
@@ -190,6 +198,9 @@ if __name__ == "__main__":
     if saved.get("valid_losses"):
         learning_curve(saved["valid_losses"])
         print("saved docs/patchtst_learning_curve.png")
-    influence_plot(influence(df, model, test_days))
+    grads = influence(df, model, test_days)
+    influence_plot(grads)
     print(f"saved docs/patchtst_influence.png ({len(test_days)} test days)")
+    save_table(influence_table(grads), "transformer_influence")
+    print("saved transformer_influence for the dashboard")
     print(f"saved docs/patchtst_summary.txt ({summary_text(model):,} parameters)")
