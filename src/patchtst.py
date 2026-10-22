@@ -70,8 +70,8 @@ def pinball_loss(predicted, actual, scale):
     return torch.maximum(q * error, (q - 1) * error).mean()
 
 
-defaults = dict(patch_len=24, stride=12, d_model=64, heads=4, layers=2, dropout=0.1, hidden=128, learning_rate=1e-3,
-                weight_decay=1e-2, batch_size=128, max_epochs=40, patience=6, warmup=0.05, train_stride=2, seed=42)
+defaults = {"patch_len": 24, "stride": 12, "d_model": 64, "heads": 4, "layers": 2, "dropout": 0.1, "hidden": 128, "learning_rate": 1e-3,
+                "weight_decay": 1e-2, "batch_size": 128, "max_epochs": 40, "patience": 6, "warmup": 0.05, "train_stride": 2, "seed": 42}
 architecture = ["patch_len", "stride", "d_model", "heads", "layers", "dropout", "hidden"]
 
 

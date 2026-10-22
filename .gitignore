@@ -5,3 +5,5 @@ models/
 .ipynb_checkpoints/
 __pycache__/
 .pytest_cache/
+.vscode/
+.ruff_cache/
