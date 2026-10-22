@@ -40,13 +40,14 @@ def scores(forecasts):
     return table.round({"MAE (MW)": 0, "RMSE (MW)": 0, "MAPE (%)": 2, "In 80% range (%)": 1, "Average width (MW)": 0})
 
 
-def week_chart(week):
+def week_chart(week, chosen):
     data = week.rename_axis("time").reset_index()
-    band = alt.Chart(data).mark_area(opacity=0.2, color=colours["PatchTST"]).encode(
+    band = alt.Chart(data).mark_area(opacity=0.35, color=colours["PatchTST"]).encode(
         x=alt.X("time:T", title=None, axis=alt.Axis(format="%a %d %b", tickCount="day")),
         y=alt.Y("patchtst_low:Q", title="Demand (MW)", scale=alt.Scale(zero=False)), y2="patchtst_high:Q")
-    columns = {"actual": "Actual", "lightgbm": "LightGBM", "patchtst": "PatchTST", "chronos": "Chronos"}
-    lines = data.melt("time", [c for c in columns if c in data], var_name="model", value_name="demand")
+    columns = {key: name for key, name in {"actual": "Actual", "lightgbm": "LightGBM", "patchtst": "PatchTST",
+               "chronos": "Chronos"}.items() if key in data and (name == "Actual" or name in chosen)}
+    lines = data.melt("time", list(columns), var_name="model", value_name="demand")
     lines["model"] = lines["model"].map(columns)
     shown = [name for name in colours if name in set(lines["model"])]
     line = alt.Chart(lines).mark_line(strokeWidth=1.8).encode(
@@ -54,17 +55,20 @@ def week_chart(week):
         color=alt.Color("model:N", title=None, sort=shown,
                         scale=alt.Scale(domain=shown, range=[colours[name] for name in shown])),
         tooltip=[alt.Tooltip("time:T", format="%a %d %b %H:%M"), "model:N", alt.Tooltip("demand:Q", format=",.0f")])
-    return (band + line).properties(height=380)
+    chart = band + line if "PatchTST" in chosen else line
+    return chart.properties(height=420)
 
 
 def influence_chart(influence):
     data = influence.assign(start=-influence["hours_before_midnight"], end=-influence["hours_before_midnight"] + 0.5)
-    return alt.Chart(data).mark_rect().encode(
+    blues = alt.Scale(scheme="blues")
+    return alt.Chart(data).mark_rect(strokeWidth=1).encode(
         x=alt.X("start:Q", title="Hours before tomorrow's midnight", scale=alt.Scale(domain=[-184, -16], nice=False),
                 axis=alt.Axis(values=list(range(-168, 0, 24)), labelExpr="-datum.value")),
         x2="end:Q",
         y=alt.Y("forecast_time:O", title="Forecast time tomorrow", axis=alt.Axis(values=[f"{h:02d}:00" for h in range(0, 24, 3)])),
-        color=alt.Color("influence:Q", title="MW per MW", scale=alt.Scale(scheme="blues")),
+        color=alt.Color("influence:Q", title="MW per MW", scale=blues),
+        stroke=alt.Stroke("influence:Q", scale=blues, legend=None),
         tooltip=["forecast_time:O", alt.Tooltip("hours_before_midnight:Q", title="hours before midnight"),
                  alt.Tooltip("influence:Q", format=".4f")],
     ).properties(height=380)
@@ -92,7 +96,9 @@ st.caption("Forecasts against actual demand, with the PatchTST 80% range shaded.
 influence = load_optional("transformer_influence")
 if influence is not None:
     st.subheader("What the transformer looks at")
-    st.altair_chart(influence_chart(influence), width="stretch")
+    available = [name for key, name in [("lightgbm", "LightGBM"), ("patchtst", "PatchTST"), ("chronos", "Chronos")] if key in forecasts]
+    chosen = st.multiselect("Models to show", available, default=[name for name in ("LightGBM", "PatchTST") if name in available])
+    st.altair_chart(week_chart(week, chosen), width="stretch")
     st.caption("How many MW each of tomorrow's forecasts moves per MW change in each past half-hour, averaged over every test day (the gradient of the forecast). The stripes are vertical: each past half-hour affects every forecast about equally, so the transformer uses the past week mainly to set tomorrow's level, with the most recent hours mattering most, rather than matching times of day as LightGBM's lag features do.")
 
 training = load_optional("transformer_training")
