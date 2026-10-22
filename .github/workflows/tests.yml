@@ -30,4 +30,8 @@ jobs:
         run: curl --retry 10 --retry-all-errors --retry-delay 2 --fail --silent --show-error --output /dev/null "http://localhost:8000/predict?day=2026-08-26"
       - name: Check the dashboard is up
         run: curl --retry 10 --retry-all-errors --retry-delay 2 --fail --silent --show-error --output /dev/null "http://localhost:8501/_stcore/health"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Install PyTorch (CPU only, for the transformer tests)
+        run: pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu
       

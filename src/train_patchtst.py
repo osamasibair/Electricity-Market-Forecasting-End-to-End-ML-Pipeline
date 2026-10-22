@@ -1,0 +1,139 @@
+"""Compare the PatchTST transformer with LightGBM and a pretrained Chronos model on the same test days. LightGBM is scored in a separate process that never loads pytorch, so each library brings its own openmp threading
+library, and on macOS having both in one process makes it crash or freeze.
+"""
+import argparse
+import multiprocessing
+import time
+from concurrent.futures import ProcessPoolExecutor
+from pathlib import Path
+
+import numpy as np
+
+from db import load_table
+from evaluate import metrics
+from forecast_windows import day_windows, horizon, windows
+from tracking import log_run
+
+models = Path("models")
+chronos_model = "amazon/chronos-bolt-small"
+
+
+def rows(starts):
+    return (starts[:, None] + np.arange(horizon)).ravel()
+
+
+def conformal_adjustment(actual, low, high, coverage=0.8):
+    return float(np.quantile(np.maximum(low - actual, actual - high), coverage))
+
+
+def summary(actual, middle, low=None, high=None):
+    result = metrics(actual, middle)
+    if low is not None:
+        result["coverage"] = ((actual >= low) & (actual <= high)).mean() * 100
+        result["width"] = (high - low).mean()
+    return {name: float(value) for name, value in result.items()}
+
+
+def lightgbm_part():
+    """Score the baseline and LightGBM, and return the dates and target the comparison uses. Runs in its own process."""
+    from quantiles import calibration_start, train_quantile_models
+    from train import features, split_date, target, train_model
+
+    df = load_table("features")
+    calib = df.iloc[rows(day_windows(df.index, calibration_start, split_date))]
+    test = df.iloc[rows(day_windows(df.index, split_date))]
+    train = df[df.index < split_date]
+
+    point = train_model(train).predict(test[features])
+    early = train_quantile_models(train[train.index < calibration_start])
+    adjustment = conformal_adjustment(calib[target].to_numpy(), early[0.1].predict(calib[features]), early[0.9].predict(calib[features]))
+    final = train_quantile_models(train)
+    low = np.minimum(final[0.1].predict(test[features]) - adjustment, point)
+    high = np.maximum(final[0.9].predict(test[features]) + adjustment, point)
+    return {
+        "split_date": split_date,
+        "calibration_start": calibration_start,
+        "target": target,
+        "baseline": summary(test[target].to_numpy(), test["demand_lag_336"].to_numpy()),
+        "lightgbm": summary(test[target].to_numpy(), point, low, high),
+    }
+
+
+def patchtst(df, calib_days, test_days, actual_calib, actual_test, calibration_start, split_date, settings):
+    from patchtst import PatchTSTForecaster
+
+    started = time.perf_counter()
+    print("patchtst: training on data before the calibration year, stopping when the calibration loss stops improving")
+    early = PatchTSTForecaster(**settings)
+    early.fit(df, windows(df.index, last=calibration_start, stride=early.settings["train_stride"]), valid=calib_days, verbose=True)
+    calib = early.predict(df, calib_days).reshape(-1, 3)
+    adjustment = conformal_adjustment(actual_calib, calib[:, 0], calib[:, 2])
+    print(f"patchtst: best after {early.best_epochs} epochs, conformal adjustment {adjustment:.0f} MW")
+
+    print(f"patchtst: refitting on all data before {split_date} for {early.best_epochs} epochs")
+    final = PatchTSTForecaster(**settings)
+    final.fit(df, windows(df.index, last=split_date, stride=final.settings["train_stride"]), epochs=early.best_epochs, verbose=True)
+    test = final.predict(df, test_days).reshape(-1, 3)
+    print(f"patchtst: trained twice in {time.perf_counter() - started:.0f}s")
+    return summary(actual_test, test[:, 1], test[:, 0] - adjustment, test[:, 2] + adjustment), final, adjustment, early.valid_losses
+
+
+def chronos(df, calib_days, test_days, actual_calib, actual_test):
+    try:
+        import torch
+        from chronos import BaseChronosPipeline
+
+        from patchtst import chronos_forecast
+    except ImportError:
+        print("chronos forecasting isnt installed, so the Chronos comparison is skipped")
+        return None
+    print(f"chronos: forecasting {len(calib_days) + len(test_days)} days with {chronos_model}")
+    pipeline = BaseChronosPipeline.from_pretrained(chronos_model, device_map="cpu", torch_dtype=torch.float32)
+    calib = chronos_forecast(df, calib_days, pipeline).reshape(-1, 3)
+    adjustment = conformal_adjustment(actual_calib, calib[:, 0], calib[:, 2])
+    test = chronos_forecast(df, test_days, pipeline).reshape(-1, 3)
+    return summary(actual_test, test[:, 1], test[:, 0] - adjustment, test[:, 2] + adjustment)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--skip-chronos", action="store_true", help="don't run the pretrained Chronos comparison")
+    args = parser.parse_args()
+
+    print("lightgbm: scoring the baseline and LightGBM in a separate process")
+    with ProcessPoolExecutor(max_workers=1, mp_context=multiprocessing.get_context("spawn")) as pool:
+        first = pool.submit(lightgbm_part).result()
+    split_date, calibration_start, target = first["split_date"], first["calibration_start"], first["target"]
+    results = {"baseline": first["baseline"], "lightgbm": first["lightgbm"]}
+    print(f"lightgbm: done, MAPE {results['lightgbm']['mape']:.2f}%")
+
+    df = load_table("features")
+    calib_days = day_windows(df.index, calibration_start, split_date)
+    test_days = day_windows(df.index, split_date)
+    actual_calib = df[target].to_numpy()[rows(calib_days)]
+    actual_test = df[target].to_numpy()[rows(test_days)]
+    print(f"calibration: {len(calib_days)} days from {calibration_start}, test: {len(test_days)} days from {split_date}")
+
+    results["patchtst"], model, adjustment, early_losses = patchtst(
+        df, calib_days, test_days, actual_calib, actual_test, calibration_start, split_date, {})
+    if not args.skip_chronos:
+        chronos_result = chronos(df, calib_days, test_days, actual_calib, actual_test)
+        if chronos_result is not None:
+            results["chronos"] = chronos_result
+
+    print(f"\n{'model':10} {'MAE':>7} {'RMSE':>7} {'MAPE':>7} {'in range':>9} {'width':>8}")
+    for name, m in results.items():
+        interval = f"{m['coverage']:8.1f}% {m['width']:6.0f} MW" if "coverage" in m else f"{'-':>9} {'-':>8}"
+        print(f"{name:10} {m['mae']:7.0f} {m['rmse']:7.0f} {m['mape']:6.2f}% {interval}")
+
+    models.mkdir(exist_ok=True)
+    model.save(models / "patchtst.pt", adjustment=adjustment, valid_losses=early_losses, split_date=split_date)
+    print("saved models/patchtst.pt")
+
+    log_run(
+        experiment="demand-patchtst",
+        params={**model.settings, "best_epochs": model.best_epochs, "split_date": split_date,
+                "calibration_start": calibration_start, "test_days": len(test_days)},
+        metrics={f"{name}_{key}": value for name, m in results.items() for key, value in m.items()},
+        files=[models / "patchtst.pt"],
+    )

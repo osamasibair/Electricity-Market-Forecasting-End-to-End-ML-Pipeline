@@ -8,12 +8,13 @@ An end to end machine learning pipeline that forecasts Great Britain's half hour
 
 **Live:** [API docs](https://electricity-api-xqiuvbbyca-nw.a.run.app/docs) · [Latest forecast](https://electricity-api-xqiuvbbyca-nw.a.run.app/forecast/latest) · [Dashboard](https://electricity-dashboard-xqiuvbbyca-nw.a.run.app) (live monitoring, plus price, spike and backtest results)
 
-- **Demand: LightGBM day ahead model: 5.03% MAPE, about 40% lower error than a same-time-last-week baseline (8.40%), with 80% prediction intervals achieving 81.9% coverage.**
+- **Demand: LightGBM day ahead model: 5.08% MAPE, about 40% lower error than a same-time-last-week baseline (8.40%), with 80% prediction intervals achieving 81.9% coverage.**
 - **Price: LightGBM model with £21.50/MWh MAE, 15% lower than the best naive baseline, using wind, solar and net demand to forecast cheap and expensive periods.**
 - **Spikes: LightGBM classifier that ranks spike risk 2.5x better than persistence (average precision 0.43 vs 0.17, ROC AUC 0.90).**
 - **Backtest: a simulated 1 MW / 2 MWh battery scheduled from the price forecast earns 77% of the perfect foresight profit, against 52% for a baseline forecast and 74% for a simple average of the last 7 days prices.**
+- **Transformer: a PatchTST transformer implemented in PyTorch (5.98% MAPE) beats Amazon's pretrained Chronos model (7.29%) but not LightGBM (5.08%) on the same days, and attribution shows why.**
 
-**Stack:** Python, pandas, LightGBM, FastAPI, Docker, pytest, SciPy, Ruff, GitHub Actions, PostgreSQL, SQLAlchemy, Docker Compose, MLFlow, Streamlit, Google Cloud (Cloud Run, Artifact Registry, Cloud Storage, Secret Manager, Workload Identity Federation), Neon, Anthropic Claude API.
+**Stack:** Python, pandas, LightGBM, PyTorch, FastAPI, Docker, pytest, SciPy, Ruff, GitHub Actions, PostgreSQL, SQLAlchemy, Docker Compose, MLFlow, Streamlit, Google Cloud (Cloud Run, Artifact Registry, Cloud Storage, Secret Manager, Workload Identity Federation), Neon, Anthropic Claude API.
 
 ---
 
@@ -26,7 +27,7 @@ Test period: 1 September 2025 to 1 September 2026 (17,566 half-hours never seen 
 | Model | MAE | RMSE | MAPE |
 |---|---|---|---|
 | Naive baseline (same time last week) | 2,132 MW | 2,878 MW | 8.40% |
-| **LightGBM** | **1,241 MW** | **1,620 MW** | **5.03%** |
+| **LightGBM** | **1,241 MW** | **1,620 MW** | **5.08%** |
 
 | Day | MAPE |
 |---|---|
@@ -44,6 +45,41 @@ Three LightGBM quantile models (q10, q50, q90) give an 80% prediction interval a
 | **Calibrated, models retrained on full training period** | **81.9%** | **9.3%** | **8.8%** | **4,204 MW** |
 
 The raw quantile models were overconfident, covering only half of actual values. Calibration widened each interval by 758 MW, bringing coverage to the 80% target with misses balanced on both sides. The intervals also adapt to the time of day: they are narrowest overnight (around 3,000 MW) and widest around midday (up to around 6,000 MW).
+
+### Transformer challenger (PatchTST)
+
+Can deep learning beat gradient boosting here? A PatchTST transformer, implemented from the paper in PyTorch and adapted for day ahead forecasting, was compared with LightGBM and with Chronos-Bolt, Amazon's pretrained time series model, used zero shot.
+
+```mermaid
+flowchart TD
+    week["Past week of demand<br/>336 half-hours, up to 08:00 the day before"] --> revin["RevIN: scale the week to mean 0, spread 1"]
+    revin --> patches["27 overlapping 12-hour patches"]
+    patches --> encoder["Transformer encoder<br/>2 layers, 4 heads"]
+    inputs["Tomorrow's weather and calendar<br/>48 half hours"] --> covariates["Covariate encoder"]
+    encoder --> head["Quantile head<br/>low ≤ median ≤ high"]
+    covariates --> head
+    head --> undo["Undo RevIN: back to MW"]
+    undo --> out["Tomorrow: 48 half hours × 10%, 50%, 90%"]
+```
+
+Every model sees the same information (demand up to 08:00 the day before, plus tomorrows weather and calendar), gets the same conformal calibration from the calibration year, and is scored on the same 363 test days. Clock change days are skipped for all of them, which is why LightGBM scores 5.08% here rather than 5.03%.
+
+| Model | MAE | RMSE | MAPE | 80% interval coverage | Average width |
+|---|---|---|---|---|---|
+| Naive baseline (same time last week) | 2,130 MW | 2,875 MW | 8.39% | — | — |
+| Chronos-Bolt small (pretrained, zero shot) | 1,839 MW | 2,437 MW | 7.29% | 78.6% | 5,614 MW |
+| PatchTST (trained here) | 1,475 MW | 1,889 MW | 5.98% | 78.7% | 4,656 MW |
+| **LightGBM** | **1,246 MW** | **1,647 MW** | **5.08%** | **80.2%** | **4,035 MW** |
+
+![PatchTST and LightGBM forecasts for the week of 5 January 2026](docs/patchtst_forecast_week.png)
+
+![Which past half hours each of tomorrow's forecasts depends on](docs/patchtst_influence.png)
+
+- **The transformer beats the pretrained model by 18% but not LightGBM.** LightGBM stays in production. This matches what forecasting competitions such as M5 found: gradient boosting with good features is hard to beat on a few years of data.
+- **Attribution explains the gap.** The heatmap shows how much each of tomorrow's forecasts moves when each past half-hour changes (the gradient of the forecast, averaged over every test day). The stripes are vertical: each past half-hour affects every forecast about equally, so the transformer uses the past week mainly to set tomorrow's level, with the most recent hours mattering most, rather than matching times of day. LightGBM gets that link directly through its same time yesterday and same time last week features.
+- **The two models make different mistakes.** In the week above, PatchTST runs high on the midweek peaks while LightGBM has night-time errors on Tuesday and Wednesday, which suggests an ensemble could beat both.
+- **It overfits quickly.** Of its 347,525 parameters, 221,312 (64%) are in the single layer that flattens the 27 patches into one summary, and the calibration loss stops improving after a few epochs ([learning curve](docs/patchtst_learning_curve.png)).
+- **Conformal calibration works for every model.** All three land within 1.5 points of the 80% target, with very different raw models.
 
 ### Price forecast
 
@@ -112,7 +148,7 @@ The demand model was replayed over the test year day by day, as if each day had 
 
 Each morning the daily job also asks Claude (Haiku, Anthropic API) to turn the day's figures, meaning tomorrow's peak and low, interval width, recent accuracy against the baseline, coverage and any alerts, into a short english briefing shown at the top of the dashboard. Before it is saved, every number in the briefing is checked against the figures Claude was given. If any number doesn't match (allowing for rounding), the briefing is rejected and the reason is logged, so a hallucinated figure can't reach the dashboard. If the API is unavailable, the forecast job carries on without a briefing.
 
-Since October 2026, a scheduled job forecasts the next days demand every morning from the latest Elexon demand and an Open Meteo **weather forecast**, the inputs a real forecaster would have. Each forecast is scored once that days actual demand is published, with the same daily accuracy, baseline and coverage checks as the replay above, and shown on the live dashboard. Because the model was trained on actual weather, live accuracy is expected to be somewhat worse than the 5.03% test result; the live scores measure by how much.
+Since October 2026, a scheduled job forecasts the next days demand every morning from the latest Elexon demand and an Open Meteo **weather forecast**, the inputs a real forecaster would have. Each forecast is scored once that days actual demand is published, with the same daily accuracy, baseline and coverage checks as the replay above, and shown on the live dashboard. The model is trained and tested on archived weather forecasts rather than measured weather, so the test results already include the effect of weather forecast errors, and the live scores check that this holds in practice.
 
 ### What the data shows about prices
 
@@ -155,6 +191,13 @@ python src/battery_backtest.py # backtest battery trading strategies and save th
 python src/monitor.py          # replay the test year and save the monitoring tables
 python src/live.py             # forecast tomorrow from live data and score earlier live forecasts
 Set `ANTHROPIC_API_KEY` to also write the daily Claude briefing. Without it, `live.py` skips the briefing and runs as normal.
+```
+**Transformer experiments** These need PyTorch, which the deployed API doesn't use, so it's kept out of `requirements.txt` and the Docker image:
+
+```bash
+pip install -r requirements-research.txt
+python src/train_patchtst.py   # train PatchTST and compare it with LightGBM and Chronos on the same days
+python src/plot_patchtst.py    # draw the figures in docs/
 ```
 
 Each training script logs its settings, results and model to MLflow. Open `http://localhost:5001` to browse and compare runs, and to see model versions.
@@ -251,6 +294,9 @@ flowchart LR
 | Features | `src/features.py` | Builds calendar, weather and lag features |
 | Train | `src/train.py` | Trains LightGBM with a time based split and compares it with the baseline |
 | Quantiles | `src/quantiles.py` | Trains q10/q50/q90 models and calibrates the prediction intervals |
+| PatchTST | `src/patchtst.py`, `src/forecast_windows.py` | The transformer (RevIN, patching, encoder, quantile head) and its training loop, and the forecast windows every model is scored on |
+| Transformer comparison | `src/train_patchtst.py` | Trains PatchTST with early stopping, calibrates it, and compares it with LightGBM and Chronos on the same test days |
+| Transformer figures | `src/plot_patchtst.py` | Draws a forecast week, the learning curve and the attribution heatmap into `docs/` |
 | Retrain | `src/retrain.py` | Checks a newly trained model against the baseline on the latest 8 weeks, then retrains the demand and interval models on all data and recalibrates the intervals |
 | Price features | `src/price_features.py` | Adds wind, solar, net demand and price lag features |
 | Price model | `src/train_price.py` | Selects features on a validation year, trains LightGBM and compares it with two baselines |
@@ -264,7 +310,7 @@ flowchart LR
 | Tracking | `src/tracking.py` | Logs each training runs settings, metrics and model files to MLflow, and registers the demand, price and spike models |
 | Predict | `src/predict.py` | Loads the saved models and forecasts a chosen day with interval |
 | Serve | `api/main.py` | FastAPI service, packaged with the `Dockerfile` and run alongside PostgreSQL with `docker-compose.yml` |
-| Test | `tests/` | Unit tests for metrics, features, the spike definition, the battery, the monitoring, and the database and the briefing (using a mocked Claude client), plus API tests |
+| Test | `tests/` | Unit tests for metrics, features, the spike definition, the battery, the monitoring, the database, the briefing (using a mocked Claude client), and the transformer (no look ahead in its windows, non crossing quantiles, reproducibility, saving and loading), plus API tests |
 | CI | `.github/workflows/tests.yml` | Lints, starts PostgreSQL, runs the tests with coverage, and starts the API and dashboard with Docker Compose on every push |
 | Scheduled retraining | `.github/workflows/retrain.yml` | Every Monday, downloads the latest data, rebuilds the features and runs the retraining, publishing if the quality gate is passed |
 | Deploy | `.github/workflows/deploy.yml` | After CI passes on `main`, or after a retrain, builds and pushes the image and deploys the API and dashboard to cloud run |
@@ -272,11 +318,11 @@ flowchart LR
 
 ### Data
 
-- **Demand:** initial national demand outturn from the Elexon BMRS API, half hourly, January 2023 to September 2026 (64,316 settlement periods).
-- **Weather:** hourly temperature, wind speed and shortwave radiation for London from the Open Meteo historical archive, interpolated to half hourly. Live forecasts use the Open Meteo forecast API instead, because the archive runs about 5 days behind.
+- **Demand:** Initial national demand outturn from the Elexon BMRS API, half hourly, January 2023 to September 2026 (64,316 settlement periods).
+- **Weather:** Hourly temperature, wind speed and shortwave radiation for London from the Open Meteo historical forecast API, interpolated to half hourly. These are archived weather forecasts rather than measured weather, so the model trains on the same kind of input it gets live, where the daily job uses the Open Meteo forecast API. Training on measured weather and serving on forecasts would make the model rely on weather inputs more than live forecasts can support.
 - **Prices:** Market Index Price (APX/EPEX) from the Elexon BMRS API. Six missing half hours and 34 half hours with zero traded volume were filled by interpolation.
-- **Wind and solar generation:** actual onshore wind, offshore wind and solar generation from the Elexon BMRS API. 4,383 republished duplicate rows were removed (keeping the latest version), 863 missing half-hours (longest gap 7 hours) were filled by interpolation, and 15 small negative values were set to zero.
-- **Storage:** raw downloads are kept as CSV files, untouched. Everything from cleaning onwards is stored in PostgreSQL tables: `dataset`, `market`, `features` and `price_features`, plus `monitoring_daily` and `monitoring_drift` for the replay, `live_forecasts`, `live_briefing` and `monitoring_live` for live forecasts, and `backtest_daily` and `price_forecasts` for the research pages.
+- **Wind and solar generation:** Actual onshore wind, offshore wind and solar generation from the Elexon BMRS API. 4,383 republished duplicate rows were removed (keeping the latest version), 863 missing half-hours (longest gap 7 hours) were filled by interpolation, and 15 small negative values were set to zero.
+- **Storage:** Raw downloads are kept as CSV files, untouched. Everything from cleaning onwards is stored in PostgreSQL tables: `dataset`, `market`, `features` and `price_features`, plus `monitoring_daily` and `monitoring_drift` for the replay, `live_forecasts`, `live_briefing` and `monitoring_live` for live forecasts, and `backtest_daily` and `price_forecasts` for the research pages.
 
 Validation found two days each missing one settlement period (2023-07-17 period 45 and 2023-12-29 period 8), which were filled by time interpolation.
 
@@ -340,11 +386,13 @@ The price model uses the demand, weather and calendar features (without `dayofye
 
 **Grounded LLM briefings.** Language models can write convincing numbers that are wrong, which matters in a forecasting system. Claude is given only a short list of facts computed by the pipeline and told to copy numbers exactly, and the code then extracts every number from its reply and checks each one against those facts, allowing for rounding. A reply with any unmatched number is discarded. The model never sees raw data or produces forecasts itself, so it explains results rather than creating them. The API key lives in a GitHub Actions secret, the key is scoped to a single workspace, and the tests use a mocked client, so CI runs without a key or any cost.
 
+**Transformer comparison.** PatchTST sees exactly what the live job has at 08:00 the day before: the previous 7 days of demand, then a 16 hour gap, then tomorrow's weather and calendar. RevIN (reversible instance normalisation) scales each week to mean 0 and spread 1 and undoes it on the output, so the model learns the shape of demand and copes as the overall level drifts between seasons and years. The quantile head predicts the median plus two positive gaps, so its 10%, 50% and 90% forecasts can never cross. It's trained with AdamW, a warmup then cosine learning rate schedule, gradient clipping and early stopping on the calibration year, then refitted on the full training period for the best number of epochs, mirroring how the LightGBM intervals are built. On macOS, LightGBM and PyTorch each load their own OpenMP threading library and freeze or crash when both run in one process, so the comparison scores LightGBM in a separate process.
+
 ---
 
 ## Limitations
 
-- The test period uses actual weather, not weather forecasts, so it overstates live accuracy. Live forecasts use weather forecasts and are scored separately on the dashboard.
+- The archived weather forecasts are stitched together from the first hours of each forecast run, which are more accurate than the day ahead forecasts available when a real forecast is made, so the test results may still slightly overstate live accuracy. Live forecasts are scored separately on the dashboard to measure this.
 - Weather comes from London only, while national demand depends on weather across Great Britain, especially for solar.
 - Holidays follow the England and Wales calendar; Scotland and Northern Ireland differ.
 - MLflow runs locally only, so the weekly retraining on githubs machines isn't tracked there. Retrained models are versioned by their report in cloud storage and kept as 30 day workflow artifacts instead.
@@ -354,6 +402,7 @@ The price model uses the demand, weather and calendar features (without `dayofye
 - Half hourly prices are noisy, and extreme spikes and negative prices remain hard to predict.
 - A spike probability cut off chosen on one year transfers imperfectly to a more volatile year, in practice it would need recalibrating regularly.
 - The briefing check verifies that every number came from the source figures, but not that it's attached to the right label (a real MAPE figure described as coverage would pass), and it can't check numbers written as words.
+- PatchTST is untuned, as it uses one set of reasonable settings, not a hyperparameter search. Chronos-Bolt is asked for 80 steps ahead (the 16 hour gap plus tomorrow), beyond the 64 it was trained for, which may understate it.
 
 ---
 
