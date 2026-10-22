@@ -90,15 +90,15 @@ first, last = forecasts.index.min().date(), forecasts.index.max().date()
 default = min(max(pd.Timestamp("2026-01-05").date(), first), last)
 start = st.date_input("Week starting", value=default, min_value=first, max_value=last)
 week = forecasts.loc[pd.Timestamp(start):pd.Timestamp(start) + pd.Timedelta(days=7) - pd.Timedelta(minutes=30)]
-st.altair_chart(week_chart(week), width="stretch")
+available = [name for key, name in [("lightgbm", "LightGBM"), ("patchtst", "PatchTST"), ("chronos", "Chronos")] if key in forecasts]
+chosen = st.multiselect("Models to show", available, default=[name for name in ("LightGBM", "PatchTST") if name in available])
+st.altair_chart(week_chart(week, chosen), width="stretch")
 st.caption("Forecasts against actual demand, with the PatchTST 80% range shaded. Pick any week in the test year: the models often make different mistakes, which is why an ensemble is the next experiment.")
 
 influence = load_optional("transformer_influence")
 if influence is not None:
     st.subheader("What the transformer looks at")
-    available = [name for key, name in [("lightgbm", "LightGBM"), ("patchtst", "PatchTST"), ("chronos", "Chronos")] if key in forecasts]
-    chosen = st.multiselect("Models to show", available, default=[name for name in ("LightGBM", "PatchTST") if name in available])
-    st.altair_chart(week_chart(week, chosen), width="stretch")
+    st.altair_chart(influence_chart(influence), width="stretch")
     st.caption("How many MW each of tomorrow's forecasts moves per MW change in each past half-hour, averaged over every test day (the gradient of the forecast). The stripes are vertical: each past half-hour affects every forecast about equally, so the transformer uses the past week mainly to set tomorrow's level, with the most recent hours mattering most, rather than matching times of day as LightGBM's lag features do.")
 
 training = load_optional("transformer_training")
