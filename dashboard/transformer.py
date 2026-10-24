@@ -12,7 +12,7 @@ names = {
     "patchtst": "PatchTST (trained from scratch)",
     "lightgbm": "LightGBM",
 }
-colours = {"Actual": "#888780", "LightGBM": "#eb6834", "PatchTST": "#2a78d6", "Chronos": "#1baf7a"}
+colours = {"Actual": "#888780", "LightGBM": "#eb6834", "PatchTST": "#2a78d6", "Chronos": "#1baf7a", "Ensemble": "#e87ba4"}
 
 
 def load_optional(name):
@@ -46,7 +46,7 @@ def week_chart(week, chosen):
         x=alt.X("time:T", title=None, axis=alt.Axis(format="%a %d %b", tickCount="day")),
         y=alt.Y("patchtst_low:Q", title="Demand (MW)", scale=alt.Scale(zero=False)), y2="patchtst_high:Q")
     columns = {key: name for key, name in {"actual": "Actual", "lightgbm": "LightGBM", "patchtst": "PatchTST",
-               "chronos": "Chronos"}.items() if key in data and (name == "Actual" or name in chosen)}
+               "chronos": "Chronos", "ensemble": "Ensemble"}.items() if key in data and (name == "Actual" or name in chosen)}
     lines = data.melt("time", list(columns), var_name="model", value_name="demand")
     lines["model"] = lines["model"].map(columns)
     shown = [name for name in colours if name in set(lines["model"])]
@@ -57,6 +57,18 @@ def week_chart(week, chosen):
         tooltip=[alt.Tooltip("time:T", format="%a %d %b %H:%M"), "model:N", alt.Tooltip("demand:Q", format=",.0f")])
     chart = band + line if "PatchTST" in chosen else line
     return chart.properties(height=420)
+
+def weight_chart(table, chosen_weight, weight):
+    data = table.reset_index().melt("weight", ["calibration_mape", "test_mape"], var_name="year", value_name="mape")
+    data["year"] = data["year"].map({"calibration_mape": "Calibration year", "test_mape": "Test year"})
+    lines = alt.Chart(data).mark_line(point=True, strokeWidth=2).encode(
+        x=alt.X("weight:Q", title="Share of PatchTST in the blend", axis=alt.Axis(format="%")),
+        y=alt.Y("mape:Q", title="MAPE (%)", scale=alt.Scale(zero=False)),
+        color=alt.Color("year:N", title=None, scale=alt.Scale(range=["#888780", colours["Ensemble"]]), legend=alt.Legend(orient="top")),
+        tooltip=[alt.Tooltip("weight:Q", title="PatchTST share", format=".0%"), "year:N", alt.Tooltip("mape:Q", title="MAPE", format=".2f")])
+    chosen_rule = alt.Chart(pd.DataFrame({"weight": [chosen_weight]})).mark_rule(strokeDash=[4, 4], color="#888780").encode(x="weight:Q")
+    slider_rule = alt.Chart(pd.DataFrame({"weight": [weight]})).mark_rule(color=colours["Ensemble"], strokeWidth=2).encode(x="weight:Q")
+    return (lines + chosen_rule + slider_rule).properties(height=300)
 
 
 def influence_chart(influence):
@@ -86,11 +98,27 @@ forecasts = forecasts.set_axis(forecasts.index.tz_localize("UTC").tz_convert("Eu
 st.dataframe(scores(forecasts))
 st.caption("Lower error is better, and a well calibrated 80% range contains about 80% of actual values. The transformer beats the pretrained model but not LightGBM, so LightGBM stays in production.")
 
+ensemble = load_optional("ensemble_weights")
+if ensemble is not None:
+    ensemble = ensemble.set_index("weight")
+    ensemble.index = ensemble.index.round(2)
+    chosen_weight = float(ensemble["calibration_mape"].idxmin())
+    st.subheader("Blending LightGBM and PatchTST")
+    weight = round(st.slider("Share of PatchTST in the blend", 0.0, 1.0, chosen_weight, 0.05), 2)
+    row, lightgbm_row = ensemble.loc[weight], ensemble.loc[0.0]
+    forecasts["ensemble"] = weight * forecasts["patchtst"] + (1 - weight) * forecasts["lightgbm"]
+    left, middle, right = st.columns(3)
+    left.metric("Test MAPE", f"{row['test_mape']:.2f}%", f"{row['test_mape'] - lightgbm_row['test_mape']:+.2f} vs LightGBM", delta_color="inverse")
+    middle.metric("In 80% range", f"{row['test_coverage']:.1f}%", "target 80%", delta_color="off")
+    right.metric("Average range width", f"{row['test_width']:,.0f} MW", f"{row['test_width'] - lightgbm_row['test_width']:+,.0f} MW vs LightGBM", delta_color="inverse")
+    st.altair_chart(weight_chart(ensemble, chosen_weight, weight), width="stretch")
+    st.caption(f"0% is LightGBM alone and 100% is PatchTST alone. The weight is chosen on the calibration year ({1 - chosen_weight:.0%} LightGBM, {chosen_weight:.0%} PatchTST, dashed line) and scored once on the test year. The test-year line is shown for transparency: choosing the weight from it would be cheating. Each blend's 80% range is recalibrated on the calibration year.")
+
 first, last = forecasts.index.min().date(), forecasts.index.max().date()
 default = min(max(pd.Timestamp("2026-01-05").date(), first), last)
 start = st.date_input("Week starting", value=default, min_value=first, max_value=last)
 week = forecasts.loc[pd.Timestamp(start):pd.Timestamp(start) + pd.Timedelta(days=7) - pd.Timedelta(minutes=30)]
-available = [name for key, name in [("lightgbm", "LightGBM"), ("patchtst", "PatchTST"), ("chronos", "Chronos")] if key in forecasts]
+available = [name for key, name in [("lightgbm", "LightGBM"), ("patchtst", "PatchTST"), ("chronos", "Chronos"), ("ensemble", "Ensemble")] if key in forecasts]
 chosen = st.multiselect("Models to show", available, default=[name for name in ("LightGBM", "PatchTST") if name in available])
 st.altair_chart(week_chart(week, chosen), width="stretch")
 st.caption("Forecasts against actual demand, with the PatchTST 80% range shaded. Pick any week in the test year: the models often make different mistakes, which is why an ensemble is the next experiment.")

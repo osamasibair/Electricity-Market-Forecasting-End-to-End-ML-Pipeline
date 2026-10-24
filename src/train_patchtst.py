@@ -46,8 +46,11 @@ def lightgbm_part():
     train = df[df.index < split_date]
 
     point = train_model(train).predict(test[features])
-    early = train_quantile_models(train[train.index < calibration_start])
-    adjustment = conformal_adjustment(calib[target].to_numpy(), early[0.1].predict(calib[features]), early[0.9].predict(calib[features]))
+    early_train = train[train.index < calibration_start]
+    early = train_quantile_models(early_train)
+    early_low, early_high = early[0.1].predict(calib[features]), early[0.9].predict(calib[features])
+    adjustment = conformal_adjustment(calib[target].to_numpy(), early_low, early_high)
+    early_point = train_model(early_train).predict(calib[features])
     final = train_quantile_models(train)
     low = np.minimum(final[0.1].predict(test[features]) - adjustment, point)
     high = np.maximum(final[0.9].predict(test[features]) + adjustment, point)
@@ -58,6 +61,8 @@ def lightgbm_part():
         "baseline": summary(test[target].to_numpy(), test["demand_lag_336"].to_numpy()),
         "lightgbm": summary(test[target].to_numpy(), point, low, high),
         "forecasts": {"baseline": test["demand_lag_336"].to_numpy(), "lightgbm": point, "lightgbm_low": low, "lightgbm_high": high},
+        "calibration": {"lightgbm": early_point, "lightgbm_low": np.minimum(early_low - adjustment, early_point),
+        "lightgbm_high": np.maximum(early_high + adjustment, early_point)},
     }
 
 
@@ -79,7 +84,9 @@ def patchtst(df, calib_days, test_days, actual_calib, actual_test, calibration_s
     print(f"patchtst: trained twice in {time.perf_counter() - started:.0f}s")
     forecasts = {"patchtst": test[:, 1], "patchtst_low": test[:, 0] - adjustment, "patchtst_high": test[:, 2] + adjustment}  
     result = summary(actual_test, forecasts["patchtst"], forecasts["patchtst_low"], forecasts["patchtst_high"])  
-    return result, final, adjustment, early.valid_losses, forecasts  
+    calibration = {"patchtst": calib[:, 1], "patchtst_low": calib[:, 0] - adjustment, "patchtst_high": calib[:, 2] + adjustment}
+    return result, final, adjustment, early.valid_losses, forecasts, calibration
+
 
 
 def chronos(df, calib_days, test_days, actual_calib, actual_test):
@@ -125,7 +132,7 @@ if __name__ == "__main__":
     actual_test = df[target].to_numpy()[rows(test_days)]
     print(f"calibration: {len(calib_days)} days from {calibration_start}, test: {len(test_days)} days from {split_date}")
 
-    results["patchtst"], model, adjustment, early_losses, patchtst_forecasts = patchtst(
+    results["patchtst"], model, adjustment, early_losses, patchtst_forecasts, patchtst_calibration = patchtst(
         df, calib_days, test_days, actual_calib, actual_test, calibration_start, split_date, {})
     forecasts.update(patchtst_forecasts)
     if not args.skip_chronos:
@@ -144,6 +151,8 @@ if __name__ == "__main__":
     print("saved models/patchtst.pt")
 
     save_table(forecast_table(df.index[rows(test_days)], actual_test, forecasts), "transformer_forecasts") 
+    calibration = {**first["calibration"], **patchtst_calibration}
+    save_table(forecast_table(df.index[rows(calib_days)], actual_calib, calibration), "transformer_calibration")
     save_table(pd.DataFrame({"loss": early_losses}, index=range(1, len(early_losses) + 1)), "transformer_training") 
     print("saved transformer_forecasts and transformer_training for the dashboard") 
 
