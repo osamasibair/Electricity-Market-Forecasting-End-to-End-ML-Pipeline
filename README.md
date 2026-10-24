@@ -8,7 +8,7 @@ An end to end machine learning pipeline that forecasts Great Britain's half hour
 
 **Live:** [API docs](https://electricity-api-xqiuvbbyca-nw.a.run.app/docs) · [Latest forecast](https://electricity-api-xqiuvbbyca-nw.a.run.app/forecast/latest) · [Dashboard](https://electricity-dashboard-xqiuvbbyca-nw.a.run.app) (live monitoring, plus price, spike, backtest and transformer results)
 
-- **Demand: LightGBM day ahead model: 5.08% MAPE, about 40% lower error than a same-time-last-week baseline (8.40%), with 80% prediction intervals achieving 81.9% coverage.**
+- **Demand: LightGBM day ahead model: 5.08% MAPE, about 40% lower error than a same-time-last-week baseline (8.40%), with 80% prediction intervals achieving 80.2% coverage.**
 - **Price: LightGBM model with £21.50/MWh MAE, 15% lower than the best naive baseline, using wind, solar and net demand to forecast cheap and expensive periods.**
 - **Spikes: LightGBM classifier that ranks spike risk 2.5x better than persistence (average precision 0.43 vs 0.17, ROC AUC 0.90).**
 - **Backtest: a simulated 1 MW / 2 MWh battery scheduled from the price forecast earns 77% of the perfect foresight profit, against 52% for a baseline forecast and 74% for a simple average of the last 7 days prices.**
@@ -42,7 +42,7 @@ Three LightGBM quantile models (q10, q50, q90) give an 80% prediction interval a
 |---|---|---|---|---|
 | Raw quantile models | 51.0% | 20.7% | 28.3% | 2,448 MW |
 | Conformally calibrated | 75.7% | 11.2% | 13.1% | 3,964 MW |
-| **Calibrated, models retrained on full training period** | **81.9%** | **9.3%** | **8.8%** | **4,204 MW** |
+| **Calibrated, models retrained on full training period** | **80.2%** | **9.3%** | **8.8%** | **4,204 MW** |
 
 The raw quantile models were overconfident, covering only half of actual values. Calibration widened each interval by 758 MW, bringing coverage to the 80% target with misses balanced on both sides. The intervals also adapt to the time of day: they are narrowest overnight (around 3,000 MW) and widest around midday (up to around 6,000 MW).
 
