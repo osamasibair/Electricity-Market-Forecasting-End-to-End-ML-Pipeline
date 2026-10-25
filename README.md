@@ -77,11 +77,11 @@ Every model sees the same information (demand up to 08:00 the day before, plus t
 
 - **The transformer beats the pretrained model by 18% but not LightGBM.** LightGBM stays in production. This matches what forecasting competitions such as M5 found: gradient boosting with good features is hard to beat on a few years of data.
 - **Attribution explains the gap.** The heatmap shows how much each of tomorrow's forecasts moves when each past half-hour changes (the gradient of the forecast, averaged over every test day). The stripes are vertical: each past half-hour affects every forecast about equally, so the transformer uses the past week mainly to set tomorrow's level, with the most recent hours mattering most, rather than matching times of day. LightGBM gets that link directly through its same time yesterday and same time last week features.
-- **The two models make different mistakes.** In the week above, PatchTST runs high on the midweek peaks while LightGBM has night-time errors on Tuesday and Wednesday, which suggests an ensemble could beat both.
+- **The two models make different mistakes.** In the week above, PatchTST runs high on the midweek peaks while LightGBM has night-time errors on Tuesday and Wednesday, so a blend of the two beats both.
 - **It overfits quickly.** Of its 347,525 parameters, 221,312 (64%) are in the single layer that flattens the 27 patches into one summary, and the calibration loss stops improving after a few epochs ([learning curve](docs/patchtst_learning_curve.png)).
 - **Conformal calibration works for every model.** All three land within 1.5 points of the 80% target, with very different raw models.
 
-Blending helps even though the transformer loses alone. A weighted average of the two models forecasts, with the weight chosen on the calibration year, gave 4.98% MAPE against 5.08% for LightGBM, with 80% ranges 4% narrower (79.2% coverage). The chosen weight, 20% PatchTST, sits at the bottom of the test year curve (best between 20% and 25%), so the choice transferred well to unseen data. The models errors only partly overlap, so even the weaker one adds information.
+- **Blending helps even though the transformer loses alone.** A weighted average of the two models forecasts, with the weight chosen on the calibration year, gave 4.98% MAPE against 5.08% for LightGBM, with 80% ranges 4% narrower (79.2% coverage). The chosen weight, 20% PatchTST, sits at the bottom of the test year curve (best between 20% and 25%), so the choice transferred well to unseen data. The models errors only partly overlap, so even the weaker one adds information.
 
 ### Price forecast
 

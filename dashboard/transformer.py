@@ -121,7 +121,7 @@ week = forecasts.loc[pd.Timestamp(start):pd.Timestamp(start) + pd.Timedelta(days
 available = [name for key, name in [("lightgbm", "LightGBM"), ("patchtst", "PatchTST"), ("chronos", "Chronos"), ("ensemble", "Ensemble")] if key in forecasts]
 chosen = st.multiselect("Models to show", available, default=[name for name in ("LightGBM", "PatchTST") if name in available])
 st.altair_chart(week_chart(week, chosen), width="stretch")
-st.caption("Forecasts against actual demand, with the PatchTST 80% range shaded. Pick any week in the test year: the models often make different mistakes, which is why an ensemble is the next experiment.")
+st.caption("Forecasts against actual demand, with the PatchTST 80% range shaded. Pick any week in the test year: the models often make different mistakes, which is why blending them beats both.")
 
 influence = load_optional("transformer_influence")
 if influence is not None:
