@@ -127,7 +127,7 @@ influence = load_optional("transformer_influence")
 if influence is not None:
     st.subheader("What the transformer looks at")
     st.altair_chart(influence_chart(influence), width="stretch")
-    st.caption("How many MW each of tomorrow's forecasts moves per MW change in each past half-hour, averaged over every test day (the gradient of the forecast). The stripes are vertical: each past half-hour affects every forecast about equally, so the transformer uses the past week mainly to set tomorrow's level, with the most recent hours mattering most, rather than matching times of day as LightGBM's lag features do.")
+    st.caption("How many MW each of tomorrow's forecasts moves per MW change in each past half-hour, averaged over every test day (the gradient of the forecast). The influence peaks at the same times every day across the week and is stronger for daytime forecasts, so the transformer matches times of day, as LightGBM's same time yesterday and last week features do. The most recent full day matters most.")
 
 training = load_optional("transformer_training")
 if training is not None:

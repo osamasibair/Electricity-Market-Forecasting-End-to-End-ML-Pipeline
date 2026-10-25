@@ -12,7 +12,7 @@ An end to end machine learning pipeline that forecasts Great Britain's half hour
 - **Price: LightGBM model with £21.50/MWh MAE, 15% lower than the best naive baseline, using wind, solar and net demand to forecast cheap and expensive periods.**
 - **Spikes: LightGBM classifier that ranks spike risk 2.5x better than persistence (average precision 0.43 vs 0.17, ROC AUC 0.90).**
 - **Backtest: a simulated 1 MW / 2 MWh battery scheduled from the price forecast earns 77% of the perfect foresight profit, against 52% for a baseline forecast and 74% for a simple average of the last 7 days prices.**
-- **Transformer: a PatchTST transformer implemented in PyTorch (5.98% MAPE) beats Amazon's pretrained Chronos model (7.29%) but not LightGBM (5.08%) on the same days, and attribution shows why.**
+- **Transformer: a PatchTST transformer implemented in PyTorch (5.61% MAPE) beats Amazon's pretrained Chronos model (7.29%) but not LightGBM (5.08%) on the same days. Blended 25/75 with LightGBM it beats both (4.97%), and attribution shows why the gain is small.**
 
 **Stack:** Python, pandas, LightGBM, PyTorch, FastAPI, Docker, pytest, SciPy, Ruff, GitHub Actions, PostgreSQL, SQLAlchemy, Docker Compose, MLFlow, Streamlit, Google Cloud (Cloud Run, Artifact Registry, Cloud Storage, Secret Manager, Workload Identity Federation), Neon, Anthropic Claude API.
 
@@ -56,7 +56,10 @@ flowchart TD
     revin --> patches["27 overlapping 12-hour patches"]
     patches --> encoder["Transformer encoder<br/>2 layers, 4 heads"]
     inputs["Tomorrow's weather and calendar<br/>48 half hours"] --> covariates["Covariate encoder"]
-    encoder --> head["Quantile head<br/>low ≤ median ≤ high"]
+    covariates --> query["One query per forecast half hour"]
+    encoder --> cross["Cross attention: each half hour picks the patches it needs"]
+    query --> cross
+    cross --> head["Quantile head<br/>low ≤ median ≤ high"]
     covariates --> head
     head --> undo["Undo RevIN: back to MW"]
     undo --> out["Tomorrow: 48 half hours × 10%, 50%, 90%"]
@@ -68,20 +71,28 @@ Every model sees the same information (demand up to 08:00 the day before, plus t
 |---|---|---|---|---|---|
 | Naive baseline (same time last week) | 2,130 MW | 2,875 MW | 8.39% | — | — |
 | Chronos-Bolt small (pretrained, zero shot) | 1,839 MW | 2,437 MW | 7.29% | 78.6% | 5,614 MW |
-| PatchTST (trained here) | 1,475 MW | 1,889 MW | 5.98% | 78.7% | 4,656 MW |
+| PatchTST (trained here) | 1,368 MW | 1,793 MW | 5.61% | 77.7% | 4,135 MW |
 | **LightGBM** | **1,246 MW** | **1,647 MW** | **5.08%** | **80.2%** | **4,035 MW** |
+| Blend: 75% LightGBM + 25% PatchTST | — | — | 4.97% | 79.2% | 3,796 MW |
 
 ![PatchTST and LightGBM forecasts for the week of 5 January 2026](docs/patchtst_forecast_week.png)
 
 ![Which past half hours each of tomorrow's forecasts depends on](docs/patchtst_influence.png)
 
-- **The transformer beats the pretrained model by 18% but not LightGBM.** LightGBM stays in production. This matches what forecasting competitions such as M5 found: gradient boosting with good features is hard to beat on a few years of data.
-- **Attribution explains the gap.** The heatmap shows how much each of tomorrow's forecasts moves when each past half-hour changes (the gradient of the forecast, averaged over every test day). The stripes are vertical: each past half-hour affects every forecast about equally, so the transformer uses the past week mainly to set tomorrow's level, with the most recent hours mattering most, rather than matching times of day. LightGBM gets that link directly through its same time yesterday and same time last week features.
-- **The two models make different mistakes.** In the week above, PatchTST runs high on the midweek peaks while LightGBM has night-time errors on Tuesday and Wednesday, so a blend of the two beats both.
-- **It overfits quickly.** Of its 347,525 parameters, 221,312 (64%) are in the single layer that flattens the 27 patches into one summary, and the calibration loss stops improving after a few epochs ([learning curve](docs/patchtst_learning_curve.png)).
-- **Conformal calibration works for every model.** All three land within 1.5 points of the 80% target, with very different raw models.
+- **The transformer beats the pretrained model by 23% but not LightGBM.** LightGBM stays in production. This matches what forecasting competitions such as M5 found: gradient boosting with good features is hard to beat on a few years of data.
+- **Letting each forecast half-hour choose what to look at helped most.** The papers head flattens the 27 patch summaries into one long vector, through a single layer holding 221,312 of the model's 347,525 parameters. Three heads were compared on the same days with `src/ablation.py`:
 
-- **Blending helps even though the transformer loses alone.** A weighted average of the two models forecasts, with the weight chosen on the calibration year, gave 4.98% MAPE against 5.08% for LightGBM, with 80% ranges 4% narrower (79.2% coverage). The chosen weight, 20% PatchTST, sits at the bottom of the test year curve (best between 20% and 25%), so the choice transferred well to unseen data. The models errors only partly overlap, so even the weaker one adds information.
+  | Head | Parameters | MAPE | 80% interval coverage | Average width |
+  |---|---|---|---|---|
+  | Flatten (paper) | 347,525 | 5.98% | 78.7% | 4,656 MW |
+  | Mean of the patches | 134,533 | 5.88% | 79.4% | 4,538 MW |
+  | **Cross attention** | **153,413** | **5.61%** | **77.7%** | **4,135 MW** |
+
+  Averaging helps a little. Cross attention, where each of tomorrow's half hours builds a query from its time of day, weather and calendar and picks the patches it needs, cut the error by 6% and the interval width by 11% with 56% fewer parameters.
+
+- **Attribution shows what changed.** The heatmap shows how much each of tomorrow's forecasts moves when each past half hour changes (the gradient of the forecast, averaged over every test day). With the flatten head, the stripes were vertical: every past half hour affected every forecast about equally, so the past week only set tomorrow's level. With cross attention, the influence peaks at the same times every day across the week and is stronger for daytime forecasts than overnight ones, so the transformer has learned to match times of day, as LightGBM does with its same time yesterday and same time last week features. The most recent full day matters most.
+- **Blending still helps, but less than the transformer's own gain suggests.** 75% LightGBM and 25% PatchTST, with the weight chosen on the calibration year, gives 4.97% MAPE against 5.08% for LightGBM, with 80% intervals 6% narrower at 79.2% coverage. With the weaker flatten head the blend scored 4.98%: as PatchTST learned to match times of day, its errors became more like LightGBM's, so it improved alone more than it adds to the blend.
+- **Training is noisy.** The calibration loss jumps between epochs and early stopping picks epoch 8 with every head ([learning curve](docs/patchtst_learning_curve.png)), so tuning the learning rate and dropout is the next step.
 
 ### Price forecast
 
@@ -200,6 +211,8 @@ Set `ANTHROPIC_API_KEY` to also write the daily Claude briefing. Without it, `li
 pip install -r requirements-research.txt
 python src/train_patchtst.py   # train PatchTST and compare it with LightGBM and Chronos on the same days
 python src/plot_patchtst.py    # draw the figures in docs/
+python src/ensemble.py         # blend LightGBM and PatchTST, choosing the weight on the calibration year
+python src/ablation.py pooling flatten mean attention   # compare settings, here the three heads
 ```
 
 Each training script logs its settings, results and model to MLflow. Open `http://localhost:5001` to browse and compare runs, and to see model versions.
@@ -299,6 +312,7 @@ flowchart LR
 | PatchTST | `src/patchtst.py`, `src/forecast_windows.py` | The transformer (RevIN, patching, encoder, quantile head) and its training loop, and the forecast windows every model is scored on |
 | Transformer comparison | `src/train_patchtst.py` | Trains PatchTST with early stopping, calibrates it, and compares it with LightGBM and Chronos on the same test days |
 | Transformer figures | `src/plot_patchtst.py` | Draws a forecast week, the learning curve and the attribution heatmap into `docs/` |
+| Ensemble and ablations | `src/ensemble.py`, `src/ablation.py` | Blends LightGBM and PatchTST with the weight chosen on the calibration year, and retrains PatchTST once per value of a setting to compare them |
 | Retrain | `src/retrain.py` | Checks a newly trained model against the baseline on the latest 8 weeks, then retrains the demand and interval models on all data and recalibrates the intervals |
 | Price features | `src/price_features.py` | Adds wind, solar, net demand and price lag features |
 | Price model | `src/train_price.py` | Selects features on a validation year, trains LightGBM and compares it with two baselines |
@@ -324,7 +338,7 @@ flowchart LR
 - **Weather:** Hourly temperature, wind speed and shortwave radiation for London from the Open Meteo historical forecast API, interpolated to half hourly. These are archived weather forecasts rather than measured weather, so the model trains on the same kind of input it gets live, where the daily job uses the Open Meteo forecast API. Training on measured weather and serving on forecasts would make the model rely on weather inputs more than live forecasts can support.
 - **Prices:** Market Index Price (APX/EPEX) from the Elexon BMRS API. Six missing half hours and 34 half hours with zero traded volume were filled by interpolation.
 - **Wind and solar generation:** Actual onshore wind, offshore wind and solar generation from the Elexon BMRS API. 4,383 republished duplicate rows were removed (keeping the latest version), 863 missing half-hours (longest gap 7 hours) were filled by interpolation, and 15 small negative values were set to zero.
-- **Storage:** Raw downloads are kept as CSV files, untouched. Everything from cleaning onwards is stored in PostgreSQL tables: `dataset`, `market`, `features` and `price_features`, plus `monitoring_daily` and `monitoring_drift` for the replay, `live_forecasts`, `live_briefing` and `monitoring_live` for live forecasts, `backtest_daily`, `price_forecasts`, `transformer_forecasts`, `transformer_training` and `transformer_influence` for the research pages.
+- **Storage:** Raw downloads are kept as CSV files, untouched. Everything from cleaning onwards is stored in PostgreSQL tables: `dataset`, `market`, `features` and `price_features`, plus `monitoring_daily` and `monitoring_drift` for the replay, `live_forecasts`, `live_briefing` and `monitoring_live` for live forecasts, `backtest_daily`, `price_forecasts`, `transformer_forecasts`, `transformer_training`, `transformer_influence`, `ensemble_weights` and `transformer_ablation` for the research pages.
 
 Validation found two days each missing one settlement period (2023-07-17 period 45 and 2023-12-29 period 8), which were filled by time interpolation.
 

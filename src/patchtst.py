@@ -17,6 +17,7 @@ from forecast_windows import (
 )
 
 quantiles = (0.1, 0.5, 0.9)
+poolings = ("flatten", "mean", "attention")
 
 
 class RevIN(nn.Module):
@@ -38,26 +39,51 @@ class RevIN(nn.Module):
 
 
 class PatchTST(nn.Module):
-    def __init__(self, n_covariates, patch_len=24, stride=12, d_model=64, heads=4, layers=2, dropout=0.1, hidden=128):
+    """The transformer reads the past week as 27 overlapping patches. `pooling` decides how those 27 patch summaries
+    become forecasts for each of tomorrow's 48 half hours:
+    - "flatten": join them into one long vector and pass it through a large linear layer, as in the PatchTST paper
+    - "mean": average them into one summary of the week
+    - "attention": each forecast half hour builds a query from its time of day, weather and calendar, and uses
+      cross attention to pick the patches it needs, so every half hour gets its own summary of the week"""
+
+    def __init__(self, n_covariates, patch_len=24, stride=12, d_model=64, heads=4, layers=2, dropout=0.1, hidden=128,
+                 pooling="attention"):
         super().__init__()
-        self.patch_len, self.stride = patch_len, stride
+        if pooling not in poolings:
+            raise ValueError(f"pooling must be one of {poolings}, not {pooling!r}")
+        self.patch_len, self.stride, self.pooling = patch_len, stride, pooling
         n_patches = (history_steps - patch_len) // stride + 1
         self.revin = RevIN()
         self.embed = nn.Linear(patch_len, d_model)
         self.position = nn.Parameter(torch.randn(1, n_patches, d_model) * 0.02)
         layer = nn.TransformerEncoderLayer(d_model, heads, 4 * d_model, dropout, batch_first=True, norm_first=True)
         self.encoder = nn.TransformerEncoder(layer, layers, enable_nested_tensor=False)
-        self.summary = nn.Sequential(nn.Flatten(), nn.Dropout(dropout), nn.Linear(n_patches * d_model, hidden), nn.GELU())
+        if pooling == "flatten":
+            self.summary = nn.Sequential(nn.Flatten(), nn.Dropout(dropout), nn.Linear(n_patches * d_model, hidden), nn.GELU())
+        else:
+            self.summary = nn.Sequential(nn.Dropout(dropout), nn.Linear(d_model, hidden), nn.GELU())
         self.covariate = nn.Sequential(nn.Linear(n_covariates, hidden // 4), nn.GELU())
         self.step = nn.Parameter(torch.zeros(horizon, hidden // 4))
         self.head = nn.Sequential(nn.Linear(hidden + hidden // 4, hidden), nn.GELU(), nn.Linear(hidden, len(quantiles)))
+        if pooling == "attention":
+            self.norm = nn.LayerNorm(d_model)
+            self.query = nn.Linear(hidden // 4, d_model)
+            self.cross = nn.MultiheadAttention(d_model, heads, dropout=dropout, batch_first=True)
+        self.keep_attention, self.attention = False, None
 
     def forward(self, history, future):
         x, mean, std = self.revin.normalise(history)
         patches = x.unfold(1, self.patch_len, self.stride)
-        week = self.summary(self.encoder(self.embed(patches) + self.position))
+        encoded = self.encoder(self.embed(patches) + self.position)
         ahead = self.covariate(future) + self.step
-        out = self.head(torch.cat([week[:, None, :].expand(-1, horizon, -1), ahead], dim=-1))
+        if self.pooling == "attention":
+            encoded = self.norm(encoded)
+            attended, self.attention = self.cross(self.query(ahead), encoded, encoded, need_weights=self.keep_attention)
+            week = self.summary(attended)
+        else:
+            pooled = encoded if self.pooling == "flatten" else encoded.mean(dim=1)
+            week = self.summary(pooled)[:, None, :].expand(-1, horizon, -1)
+        out = self.head(torch.cat([week, ahead], dim=-1))
         median = out[..., 1]
         low = median - nn.functional.softplus(out[..., 0])
         high = median + nn.functional.softplus(out[..., 2])
@@ -70,9 +96,10 @@ def pinball_loss(predicted, actual, scale):
     return torch.maximum(q * error, (q - 1) * error).mean()
 
 
-defaults = {"patch_len": 24, "stride": 12, "d_model": 64, "heads": 4, "layers": 2, "dropout": 0.1, "hidden": 128, "learning_rate": 1e-3,
-                "weight_decay": 1e-2, "batch_size": 128, "max_epochs": 40, "patience": 6, "warmup": 0.05, "train_stride": 2, "seed": 42}
-architecture = ["patch_len", "stride", "d_model", "heads", "layers", "dropout", "hidden"]
+defaults = {"patch_len": 24, "stride": 12, "d_model": 64, "heads": 4, "layers": 2, "dropout": 0.1, "hidden": 128,
+            "pooling": "attention", "learning_rate": 1e-3, "weight_decay": 1e-2, "batch_size": 128, "max_epochs": 40,
+            "patience": 6, "warmup": 0.05, "train_stride": 2, "seed": 42}
+architecture = ["patch_len", "stride", "d_model", "heads", "layers", "dropout", "hidden", "pooling"]
 
 
 class PatchTSTForecaster:
@@ -158,7 +185,7 @@ class PatchTSTForecaster:
     @classmethod
     def load(cls, path):
         saved = torch.load(path)
-        model = cls(**saved["settings"])
+        model = cls(**{"pooling": "flatten", **saved["settings"]})
         model.cov_mean = np.array(saved["cov_mean"], dtype=np.float32)
         model.cov_std = np.array(saved["cov_std"], dtype=np.float32)
         model.best_epochs = saved["best_epochs"]

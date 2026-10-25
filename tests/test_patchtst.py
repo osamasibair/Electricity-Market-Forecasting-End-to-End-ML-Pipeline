@@ -78,6 +78,47 @@ def test_quantiles_never_cross():
     assert out.shape == (8, horizon, 3)
     assert (out[..., 0] <= out[..., 1]).all() and (out[..., 1] <= out[..., 2]).all()
 
+@pytest.mark.parametrize("pooling", ["flatten", "mean", "attention"])
+def test_every_pooling_gives_forecasts_whose_quantiles_never_cross(pooling):
+    torch.manual_seed(0)
+    net = PatchTST(n_covariates=11, pooling=pooling)
+    out = net(torch.randn(8, history_steps) * 3000 + 30000, torch.randn(8, horizon, 11))
+    assert out.shape == (8, horizon, 3)
+    assert (out[..., 0] <= out[..., 1]).all() and (out[..., 1] <= out[..., 2]).all()
+
+
+def test_attention_pooling_needs_far_fewer_parameters_than_flatten():
+    def count(net):
+        return sum(p.numel() for p in net.parameters())
+
+    assert count(PatchTST(11, pooling="attention")) < count(PatchTST(11, pooling="flatten")) / 2
+
+
+def test_each_forecast_half_hour_spreads_its_attention_over_the_27_patches():
+    net = PatchTST(11).eval()
+    net.keep_attention = True
+    net(torch.randn(2, history_steps) * 3000 + 30000, torch.randn(2, horizon, 11))
+    assert net.attention.shape == (2, horizon, 27)
+    assert torch.allclose(net.attention.sum(dim=-1), torch.ones(2, horizon))
+
+
+def test_unknown_pooling_is_rejected():
+    with pytest.raises(ValueError):
+        PatchTST(11, pooling="max")
+
+
+def test_models_saved_before_pooling_existed_load_with_the_flatten_head(tmp_path):
+    df = make_features(days=30)
+    test = day_windows(df.index)[-2:]
+    model = PatchTSTForecaster(max_epochs=1, d_model=16, hidden=32, pooling="flatten").fit(df, windows(df.index, stride=16))
+    model.save(tmp_path / "old.pt")
+    saved = torch.load(tmp_path / "old.pt")
+    del saved["settings"]["pooling"]
+    torch.save(saved, tmp_path / "old.pt")
+    loaded, _ = PatchTSTForecaster.load(tmp_path / "old.pt")
+    assert loaded.settings["pooling"] == "flatten"
+    assert np.allclose(model.predict(df, test), loaded.predict(df, test))
+
 
 def test_learns_the_daily_shape_after_a_short_training_run():
     df = make_features(days=150)
