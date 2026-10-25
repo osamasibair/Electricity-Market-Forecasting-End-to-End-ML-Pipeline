@@ -6,7 +6,7 @@ import streamlit as st
 
 sys.path.append(str(Path(__file__).resolve().parent.parent / "src"))
 
-st.set_page_config(page_title="UK electricity forecasting", layout="wide")
+st.set_page_config(page_title="GB power market forecasting", layout="wide")
 pages = st.navigation({
     "Live": [st.Page("monitoring.py", title="Demand monitoring", default=True)],
     "Research (test year)": [
