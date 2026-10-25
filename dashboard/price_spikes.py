@@ -10,7 +10,7 @@ from sklearn.metrics import (
 
 from db import load_table
 
-st.title("Price spikes")
+st.title("Price Spikes")
 st.caption("A spike is a price far above its own 7-day average: the top 5% of such jumps in the training data. Results are on the test year (1 September 2025 to 31 August 2026).")
 
 prices = load_table("price_forecasts")

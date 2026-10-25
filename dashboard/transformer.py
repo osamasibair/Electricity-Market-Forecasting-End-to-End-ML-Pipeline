@@ -86,7 +86,7 @@ def influence_chart(influence):
     ).properties(height=380)
 
 
-st.title("Transformer challenger")
+st.title("Transformer")
 st.caption("PatchTST is a transformer implemented from the paper in PyTorch and trained from scratch on this data. It is compared with the LightGBM model and with Chronos-Bolt, Amazon's pretrained time series model, used without any training. Every model sees demand up to 08:00 the day before plus tomorrow's weather and calendar, gets the same conformal calibration, and is scored on the same test days (1 September 2025 to 31 August 2026, clock change days skipped).")
 
 forecasts = load_optional("transformer_forecasts")

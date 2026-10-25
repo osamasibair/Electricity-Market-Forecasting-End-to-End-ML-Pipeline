@@ -12,7 +12,7 @@ def load_optional(name):
     except ValueError:
         return None
 
-st.title("Demand forecast monitoring")
+st.title("Demand Forecast Monitoring")
 
 briefing = load_optional("live_briefing")
 if briefing is not None:

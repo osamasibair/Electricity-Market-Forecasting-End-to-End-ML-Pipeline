@@ -6,13 +6,13 @@ import streamlit as st
 
 sys.path.append(str(Path(__file__).resolve().parent.parent / "src"))
 
-st.set_page_config(page_title="GB power market forecasting", layout="wide")
+st.set_page_config(page_title="GB Power Market Forecasting and Trading", layout="wide")
 pages = st.navigation({
-    "Live": [st.Page("monitoring.py", title="Demand monitoring", default=True)],
+    "Live": [st.Page("monitoring.py", title="Demand Monitoring", default=True)],
     "Research (test year)": [
-        st.Page("price_forecast.py", title="Price forecast"),
-        st.Page("price_spikes.py", title="Price spikes"),
-        st.Page("battery.py", title="Battery backtest"),
+        st.Page("price_forecast.py", title="Price Forecast"),
+        st.Page("price_spikes.py", title="Price Spikes"),
+        st.Page("battery.py", title="Battery Backtest"),
         st.Page("transformer.py", title="Transformer"),
     ],
 })

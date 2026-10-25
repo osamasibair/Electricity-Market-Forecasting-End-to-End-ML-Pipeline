@@ -4,7 +4,7 @@ import streamlit as st
 
 from db import load_table
 
-st.title("Battery backtest")
+st.title("Battery Backtest")
 st.caption("A simulated 1 MW / 2 MWh battery with 90% round trip efficiency plans each days charging and discharging from a price forecast with linear programming, and the plan is scored on the real prices. Test year: 1 September 2025 to 31 August 2026.")
 
 daily = load_table("backtest_daily")

@@ -4,7 +4,7 @@ import streamlit as st
 
 from db import load_table
 
-st.title("Price forecast")
+st.title("Price Forecast")
 st.caption("Half hourly Market Index Price over the test year (1 September 2025 to 31 August 2026). This model isn't run live, because live price forecasts would need wind and solar generation forecasts.")
 
 prices = load_table("price_forecasts")
