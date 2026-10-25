@@ -12,7 +12,7 @@ An end to end machine learning pipeline that forecasts Great Britain's half hour
 - **Price: LightGBM model with £21.50/MWh MAE, 15% lower than the best naive baseline, using wind, solar and net demand to forecast cheap and expensive periods.**
 - **Spikes: LightGBM classifier that ranks spike risk 2.5x better than persistence (average precision 0.43 vs 0.17, ROC AUC 0.90).**
 - **Backtest: a simulated 1 MW / 2 MWh battery scheduled from the price forecast earns 77% of the perfect foresight profit, against 52% for a baseline forecast and 74% for a simple average of the last 7 days prices.**
-- **Transformer: a PatchTST transformer implemented in PyTorch (5.61% MAPE) beats Amazon's pretrained Chronos model (7.29%) but not LightGBM (5.08%) on the same days. Blended 25/75 with LightGBM it beats both (4.97%), and attribution shows why the gain is small.**
+- **Transformer: a PatchTST transformer implemented and trained in PyTorch (5.61% MAPE) beats Amazon's pretrained Chronos model (7.29%) but not LightGBM (5.08%) on the same days. Blended 25/75 with LightGBM it beats both (4.97%), and attribution shows why the gain is small.**
 
 **Stack:** Python, pandas, LightGBM, PyTorch, FastAPI, Docker, pytest, SciPy, Ruff, GitHub Actions, PostgreSQL, SQLAlchemy, Docker Compose, MLFlow, Streamlit, Google Cloud (Cloud Run, Artifact Registry, Cloud Storage, Secret Manager, Workload Identity Federation), Neon, Anthropic Claude API.
 
