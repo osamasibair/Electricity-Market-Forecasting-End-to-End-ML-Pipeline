@@ -14,7 +14,7 @@ from forecast_windows import (
     horizon,
     windows,
 )
-from patchtst import PatchTST, PatchTSTForecaster, RevIN, chronos_forecast
+from patchtst import PatchTST, PatchTSTForecaster, RevIN, chronos_forecast, same_time
 
 torch.set_num_threads(1)
 
@@ -118,6 +118,31 @@ def test_models_saved_before_pooling_existed_load_with_the_flatten_head(tmp_path
     loaded, _ = PatchTSTForecaster.load(tmp_path / "old.pt")
     assert loaded.settings["pooling"] == "flatten"
     assert np.allclose(model.predict(df, test), loaded.predict(df, test))
+
+
+def test_same_time_lags_are_the_demand_2_and_7_days_before_each_forecast_half_hour():
+    df = make_features(days=20)
+    start = day_windows(df.index)[:1]
+    history, _, _ = arrays(df, start)
+    lags = same_time(torch.from_numpy(history))
+    demand = df["demand"].to_numpy(dtype=np.float32)
+    assert lags.shape == (1, horizon, 2)
+    assert np.allclose(lags[0, :, 0], demand[start[0] - 96:start[0] - 96 + horizon])
+    assert np.allclose(lags[0, :, 1], demand[start[0] - 336:start[0] - 336 + horizon])
+
+
+def test_lags_add_two_inputs_per_half_hour_and_keep_quantiles_in_order():
+    torch.manual_seed(0)
+    without, with_lags = PatchTST(11), PatchTST(11, lags=1)
+    assert with_lags.covariate[0].in_features == without.covariate[0].in_features + 2
+    out = with_lags(torch.randn(4, history_steps) * 3000 + 30000, torch.randn(4, horizon, 11))
+    assert out.shape == (4, horizon, 3)
+    assert (out[..., 0] <= out[..., 1]).all() and (out[..., 1] <= out[..., 2]).all()
+
+
+def test_lags_must_be_0_or_1():
+    with pytest.raises(ValueError):
+        PatchTST(11, lags=2)
 
 
 def test_learns_the_daily_shape_after_a_short_training_run():

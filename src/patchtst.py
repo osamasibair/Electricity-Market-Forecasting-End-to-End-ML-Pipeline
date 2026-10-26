@@ -20,6 +20,16 @@ quantiles = (0.1, 0.5, 0.9)
 poolings = ("flatten", "mean", "attention")
 
 
+lag_steps = (96, 336)  # the same half hour 2 days and 7 days earlier, both inside the history window
+
+
+def same_time(history):
+    """For each of tomorrow's 48 half hours, the demand at the same half hour 2 days and 7 days earlier, taken from the
+    history window, shape (batch, 48, 2). Same time yesterday isn't used, history stops at 08:00 the day before."""
+    end = history_steps + gap_steps
+    return torch.stack([history[:, end - lag:end - lag + horizon] for lag in lag_steps], dim=-1)
+
+
 class RevIN(nn.Module):
     """Reversible instance normalisation: scale each week of history to mean 0 and spread 1, then undo it on the forecast,
     so the model learns the shape of demand and copes when the overall level drifts between seasons and years."""
@@ -47,10 +57,13 @@ class PatchTST(nn.Module):
       cross attention to pick the patches it needs, so every half hour gets its own summary of the week"""
 
     def __init__(self, n_covariates, patch_len=24, stride=12, d_model=64, heads=4, layers=2, dropout=0.1, hidden=128,
-                 pooling="attention"):
+                 pooling="attention", lags=0):
         super().__init__()
         if pooling not in poolings:
             raise ValueError(f"pooling must be one of {poolings}, not {pooling!r}")
+        if lags not in (0, 1):
+            raise ValueError(f"lags must be 0 or 1, not {lags!r}")
+        self.lags = lags
         self.patch_len, self.stride, self.pooling = patch_len, stride, pooling
         n_patches = (history_steps - patch_len) // stride + 1
         self.revin = RevIN()
@@ -62,7 +75,7 @@ class PatchTST(nn.Module):
             self.summary = nn.Sequential(nn.Flatten(), nn.Dropout(dropout), nn.Linear(n_patches * d_model, hidden), nn.GELU())
         else:
             self.summary = nn.Sequential(nn.Dropout(dropout), nn.Linear(d_model, hidden), nn.GELU())
-        self.covariate = nn.Sequential(nn.Linear(n_covariates, hidden // 4), nn.GELU())
+        self.covariate = nn.Sequential(nn.Linear(n_covariates + lags * len(lag_steps), hidden // 4), nn.GELU())
         self.step = nn.Parameter(torch.zeros(horizon, hidden // 4))
         self.head = nn.Sequential(nn.Linear(hidden + hidden // 4, hidden), nn.GELU(), nn.Linear(hidden, len(quantiles)))
         if pooling == "attention":
@@ -75,6 +88,8 @@ class PatchTST(nn.Module):
         x, mean, std = self.revin.normalise(history)
         patches = x.unfold(1, self.patch_len, self.stride)
         encoded = self.encoder(self.embed(patches) + self.position)
+        if self.lags:
+            future = torch.cat([future, same_time(x)], dim=-1)
         ahead = self.covariate(future) + self.step
         if self.pooling == "attention":
             encoded = self.norm(encoded)
@@ -97,9 +112,9 @@ def pinball_loss(predicted, actual, scale):
 
 
 defaults = {"patch_len": 24, "stride": 12, "d_model": 64, "heads": 4, "layers": 2, "dropout": 0.1, "hidden": 128,
-            "pooling": "attention", "learning_rate": 1e-3, "weight_decay": 1e-2, "batch_size": 128, "max_epochs": 40,
+            "pooling": "attention", "lags": 0, "learning_rate": 1e-3, "weight_decay": 1e-2, "batch_size": 128, "max_epochs": 40,
             "patience": 6, "warmup": 0.05, "train_stride": 2, "seed": 42}
-architecture = ["patch_len", "stride", "d_model", "heads", "layers", "dropout", "hidden", "pooling"]
+architecture = ["patch_len", "stride", "d_model", "heads", "layers", "dropout", "hidden", "pooling", "lags"]
 
 
 class PatchTSTForecaster:
@@ -185,7 +200,7 @@ class PatchTSTForecaster:
     @classmethod
     def load(cls, path):
         saved = torch.load(path)
-        model = cls(**{"pooling": "flatten", **saved["settings"]})
+        model = cls(**{"pooling": "flatten", "lags": 0, **saved["settings"]})
         model.cov_mean = np.array(saved["cov_mean"], dtype=np.float32)
         model.cov_std = np.array(saved["cov_std"], dtype=np.float32)
         model.best_epochs = saved["best_epochs"]
