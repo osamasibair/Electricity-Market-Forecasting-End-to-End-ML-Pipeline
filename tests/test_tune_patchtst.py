@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import optuna
 import pytest
 
@@ -21,14 +23,13 @@ def test_the_first_trial_can_be_the_current_defaults():
 
 
 def test_best_settings_add_the_stride_back():
-    class Trial:
-        params = {"patch_len": 12, "learning_rate": 1e-3}
-
-    assert best_settings(Trial()) == {"patch_len": 12, "learning_rate": 1e-3, "stride": 6}
+    trial = SimpleNamespace(params={"patch_len": 12, "learning_rate": 1e-3})
+    assert best_settings(trial) == {"patch_len": 12, "learning_rate": 1e-3, "stride": 6}
 
 
 def test_a_callback_can_stop_training_early():
     from test_patchtst import make_features
+
     from forecast_windows import day_windows, windows
 
     df = make_features(days=40)
