@@ -163,7 +163,7 @@ def summary_text(model):
     except ImportError:
         lines.append("(install torchinfo for the table)")
     else:
-        n_covariates = model.net.covariate[0].in_features
+        n_covariates = len(model.cov_mean)
         lines.append(str(summary(model.net, input_size=[(1, history_steps), (1, horizon, n_covariates)], verbose=0)))
     (docs / "patchtst_summary.txt").write_text("\n".join(lines) + "\n")
     return parameters

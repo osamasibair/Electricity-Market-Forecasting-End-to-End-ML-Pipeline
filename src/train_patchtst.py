@@ -1,7 +1,7 @@
 """Compare the PatchTST transformer with LightGBM and a pretrained Chronos model on the same test days. LightGBM is scored in a separate process that never loads pytorch, so each library brings its own openmp threading
-library, and on macOS having both in one process makes it crash or freeze.
-"""
+library, and on macOS having both in one process makes it crash or freeze."""
 import argparse
+import json
 import multiprocessing
 import time
 from concurrent.futures import ProcessPoolExecutor
@@ -17,6 +17,17 @@ from tracking import log_run
 
 models = Path("models")
 chronos_model = "amazon/chronos-bolt-small"
+
+tuned_path = models / "patchtst_tuned.json"
+
+
+def base_settings(tuned):
+    """The PatchTST settings to start from: the defaults, or with `tuned` the settings optuna chose."""
+    if not tuned:
+        return {}
+    if not tuned_path.exists():
+        raise SystemExit("models/patchtst_tuned.json not found, run src/tune_patchtst.py first")
+    return json.loads(tuned_path.read_text())
 
 
 def rows(starts):
@@ -115,6 +126,7 @@ def forecast_table(index, actual, forecasts):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--skip-chronos", action="store_true", help="don't run the pretrained Chronos comparison")
+    parser.add_argument("--tuned", action="store_true", help="train with the settings in models/patchtst_tuned.json")
     args = parser.parse_args()
 
     print("lightgbm: scoring the baseline and LightGBM in a separate process")
@@ -133,7 +145,7 @@ if __name__ == "__main__":
     print(f"calibration: {len(calib_days)} days from {calibration_start}, test: {len(test_days)} days from {split_date}")
 
     results["patchtst"], model, adjustment, early_losses, patchtst_forecasts, patchtst_calibration = patchtst(
-        df, calib_days, test_days, actual_calib, actual_test, calibration_start, split_date, {})
+        df, calib_days, test_days, actual_calib, actual_test, calibration_start, split_date, base_settings(args.tuned))
     forecasts.update(patchtst_forecasts)
     if not args.skip_chronos:
         chronos_result = chronos(df, calib_days, test_days, actual_calib, actual_test)

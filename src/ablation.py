@@ -10,7 +10,7 @@ import pandas as pd
 from db import load_table, save_table
 from forecast_windows import day_windows
 from tracking import log_run
-from train_patchtst import patchtst, rows
+from train_patchtst import base_settings, patchtst, rows
 
 
 def dates():
@@ -30,6 +30,23 @@ def parse(value):
     return value
 
 
+def run_settings(base, setting, value, seed):
+    """The settings for one run: the base settings with one setting changed. Patches always overlap by half."""
+    settings = {**base, setting: value, "seed": seed}
+    if setting == "patch_len":
+        settings["stride"] = value // 2
+    return settings
+
+
+def average(runs):
+    """One row from several seeds: the mean of every number, plus the spread of the test MAPE between seeds."""
+    frame = pd.DataFrame(runs)
+    row = frame.mean(numeric_only=True).to_dict()
+    row["mape_std"] = float(frame["mape"].std()) if len(frame) > 1 else 0.0
+    row["seeds"] = len(frame)
+    return row
+
+
 def merge(old, new):
     """Replace the rows for the setting just tested and keep the rows for other settings."""
     if old is None:
@@ -42,6 +59,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("setting", help="the PatchTST setting to vary, e.g. pooling")
     parser.add_argument("values", nargs="+", help="the values to try")
+    parser.add_argument("--seeds", nargs="+", type=int, default=[42], help="train once per seed and average, e.g. --seeds 42 1 2")
+    parser.add_argument("--tuned", action="store_true", help="start from the settings in models/patchtst_tuned.json")
     args = parser.parse_args()
 
     from patchtst import defaults
@@ -57,24 +76,28 @@ if __name__ == "__main__":
     actual_calib = df[target].to_numpy()[rows(calib_days)]
     actual_test = df[target].to_numpy()[rows(test_days)]
 
+    base = base_settings(args.tuned)
     results = []
     for value in map(parse, args.values):
-        print(f"\n{args.setting} = {value}")
-        settings = {args.setting: value}
-        result, model, adjustment, losses, _, _ = patchtst(
-            df, calib_days, test_days, actual_calib, actual_test, calibration_start, split_date, settings)
-        row = {"setting": args.setting, "value": str(value),
-               "parameters": sum(p.numel() for p in model.net.parameters()),
-               "best_epoch": model.best_epochs, "calibration_loss": min(losses), **result}
-        results.append(row)
-        log_run(experiment="demand-patchtst-ablation", params={**model.settings, "best_epochs": model.best_epochs},
-                metrics={k: v for k, v in row.items() if k not in ("setting", "value")}, files=[])
+        runs = []
+        for seed in args.seeds:
+            print(f"\n{args.setting} = {value}, seed {seed}")
+            settings = run_settings(base, args.setting, value, seed)
+            result, model, adjustment, losses, _, _ = patchtst(
+                df, calib_days, test_days, actual_calib, actual_test, calibration_start, split_date, settings)
+            run = {"parameters": sum(p.numel() for p in model.net.parameters()),
+                   "best_epoch": model.best_epochs, "calibration_loss": min(losses), **result}
+            runs.append(run)
+            log_run(experiment="demand-patchtst-ablation", params={**model.settings, "best_epochs": model.best_epochs},
+                    metrics=run, files=[])
+        results.append({"setting": args.setting, "value": str(value), "tuned": args.tuned, **average(runs)})
 
     table = pd.DataFrame(results)
-    print(f"\n{args.setting:>12} {'parameters':>11} {'epoch':>6} {'calib loss':>11} {'MAPE':>7} {'in range':>9} {'width':>8}")
+    print(f"\n{args.setting:>12} {'parameters':>11} {'epoch':>6} {'calib loss':>11} {'MAPE':>15} {'in range':>9} {'width':>8}"
+          f"   ({len(args.seeds)} seed{'s' if len(args.seeds) > 1 else ''}{', tuned' if args.tuned else ''})")
     for _, r in table.iterrows():
-        print(f"{r['value']:>12} {r['parameters']:>11,} {r['best_epoch']:>6} {r['calibration_loss']:>11.4f} "
-              f"{r['mape']:>6.2f}% {r['coverage']:>8.1f}% {r['width']:>5.0f} MW")
+        print(f"{r['value']:>12} {r['parameters']:>11,.0f} {r['best_epoch']:>6.1f} {r['calibration_loss']:>11.4f} "
+              f"{r['mape']:>6.2f}% ± {r['mape_std']:.2f}  {r['coverage']:>8.1f}% {r['width']:>5.0f} MW")
 
     try:
         old = load_table("transformer_ablation").reset_index(drop=True)

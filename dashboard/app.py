@@ -9,7 +9,7 @@ sys.path.append(str(Path(__file__).resolve().parent.parent / "src"))
 st.set_page_config(page_title="GB Power Market Forecasting and Trading", layout="wide")
 pages = st.navigation({
     "Live": [st.Page("monitoring.py", title="Demand Monitoring", default=True)],
-    "Research (test year)": [
+    "Research (Test Year)": [
         st.Page("price_forecast.py", title="Price Forecast"),
         st.Page("price_spikes.py", title="Price Spikes"),
         st.Page("battery.py", title="Battery Backtest"),

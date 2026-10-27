@@ -133,9 +133,10 @@ class PatchTSTForecaster:
         scale = history.std(dim=1, unbiased=False) + 1e-5
         return pinball_loss(self.net(history, future), actual, scale[:, None])
 
-    def fit(self, df, starts, valid=None, epochs=None, verbose=False):
+    def fit(self, df, starts, valid=None, epochs=None, verbose=False, callback=None):
         """Train on the windows at `starts`. With `valid`, stop when the loss on those windows stops improving;
-        with `epochs`, train for exactly that many (used to refit on all the data once the best length is known)."""
+        with `epochs`, train for exactly that many (used to refit on all the data once the best length is known), 
+        `callback(epoch, loss)` is called after each epoch's validation loss, which lets Optuna stop poor trials early."""
         torch.manual_seed(self.settings["seed"])
         cov = covariate_matrix(df)[starts[:, None] + np.arange(horizon)].reshape(-1, len(covariates) + 2 * len(cycles))
         self.cov_mean, self.cov_std = cov.mean(axis=0), cov.std(axis=0) + 1e-6
@@ -172,6 +173,8 @@ class PatchTSTForecaster:
             with torch.no_grad():
                 valid_loss = self.loss(*valid_tensors).item()
             self.valid_losses.append(valid_loss)
+            if callback is not None:
+                callback(epoch, valid_loss)
             if verbose:
                 print(f"  epoch {epoch}: calibration loss {valid_loss:.4f} ({time.perf_counter() - started:.0f}s)")
             if valid_loss < best:
