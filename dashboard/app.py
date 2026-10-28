@@ -10,10 +10,10 @@ st.set_page_config(page_title="GB Power Market Forecasting and Trading", layout=
 pages = st.navigation({
     "Live": [st.Page("monitoring.py", title="Demand Monitoring", default=True)],
     "Research (Test Year)": [
+        st.Page("transformer.py", title="Gradient Boosting vs Deep Learning"),
         st.Page("price_forecast.py", title="Price Forecast"),
         st.Page("price_spikes.py", title="Price Spikes"),
         st.Page("battery.py", title="Battery Backtest"),
-        st.Page("transformer.py", title="Transformer"),
     ],
 })
 pages.run()
