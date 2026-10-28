@@ -7,6 +7,7 @@ history_steps = 336
 gap_steps = 32
 horizon = 48
 covariates = ["temperature_2m", "shortwave_radiation", "hdd", "is_holiday", "is_christmas"]
+weather = ["temperature_2m", "shortwave_radiation", "hdd"]
 cycles = {"period": 48, "dayofweek": 7, "dayofyear": 365.25}
 
 
@@ -17,6 +18,10 @@ def covariate_matrix(df):
         columns += [np.sin(angle), np.cos(angle)]
     return np.stack(columns, axis=1).astype(np.float32)
 
+def covariate_columns(use_weather=True):
+    """Which columns of covariate_matrix to use. all of them, or without tomorrows weather (calendar only)."""
+    names = covariates + [f"{kind}_{name}" for name in cycles for kind in ("sin", "cos")]
+    return np.array([i for i, name in enumerate(names) if use_weather or name not in weather])
 
 def windows(index, first=None, last=None, stride=1):
     """Positions where a forecast window starts: a full week of history, then the gap, then 48 half hours in [first, last)."""

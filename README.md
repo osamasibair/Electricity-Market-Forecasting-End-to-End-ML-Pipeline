@@ -94,7 +94,18 @@ Every model sees the same information (demand up to 08:00 the day before, plus t
 - **Giving it the matching past half-hours directly added nothing.** Feeding each forecast half-hour the demand at the same time 2 and 7 days earlier, LightGBM's strongest kind of feature, moved test MAPE from 5.61% to 5.60%. Cross attention had already learned to find those values itself, as the heatmap shows.
 - **Tuning overfitted the calibration year, and made the transformer more like LightGBM.** Optuna searched 40 settings (learning rate, dropout, model size, patch length, lags), scored only on the calibration year, with median pruning. The winner, a smaller model with one layer and day long patches, cut calibration year error by 7%, but averaged over three random seeds it matched the default on the test year (5.61% ± 0.07 vs 5.58% ± 0.10), with 69% fewer parameters and better coverage (79.4%). Comparing 40 settings on one year picks partly the setting that suits that year. Its attribution map shows why it blends worse: it relies almost entirely on the demand 2 and 7 days before each half hour, as LightGBM does ([heatmap](docs/patchtst_influence_tuned.png)), so it repeats LightGBM's mistakes, such as under forecasting the first working day after New Year when both lag days fell in the holiday. The default settings were kept.
 - **Blending still helps, but less than the transformer's own gain suggests.** 75% LightGBM and 25% PatchTST, with the weight chosen on the calibration year, gives 4.97% MAPE against 5.08% for LightGBM, with 80% intervals 6% narrower at 79.2% coverage. With the weaker flatten head the blend scored 4.98%: as PatchTST learned to match times of day, its errors became more like LightGBM's, so it improved alone more than it adds to the blend.
-- **Training is noisy.** The calibration loss jumps between epochs and early stopping picks epoch 8 with every head ([learning curve](docs/patchtst_learning_curve.png)), so tuning the learning rate and dropout is the next step.
+- **Training is noisy.** The calibration loss jumps between epochs and early stopping picks epoch 8 with every head ([learning curve](docs/patchtst_learning_curve.png)), and tuning didn't fix it, so results are compared over three random seeds.
+- **Ablations show weather matters most, and RevIN keeps the intervals honest.** Each change was trained with three random seeds (`src/ablation.py`), and only differences clearly larger than the spread between seeds count:
+
+  | Change from the default | Test MAPE (3 seeds) | 80% interval coverage | Average width |
+  |---|---|---|---|
+  | Default (RevIN, weather, 12 hour patches) | 5.64% ± 0.18 | 79.2% | 4,263 MW |
+  | No weather, calendar only | 6.47% ± 0.07 | 81.5% | 5,192 MW |
+  | No RevIN, one fixed scale | 5.56% ± 0.39 | 75.9% | 4,046 MW |
+  | 6 hour patches | 5.83% ± 0.22 | 78.3% | 4,407 MW |
+  | 24 hour patches | 5.63% ± 0.15 | 81.1% | 4,472 MW |
+
+  Without tomorrows weather, error rises 15% and intervals widen 22%: temperature drives heating demand and sunshine drives rooftop solar. Removing RevIN leaves the average error unchanged but doubles the spread between seeds, and coverage falls to 75.9%: with one fixed scale the model can't adjust when demand levels shift, so intervals calibrated on one year are too narrow for the next. Patch length barely matters above 12 hours. Rerunning the default with the same seeds after a small code change moved its average from 5.58% to 5.64%, a reminder that single run differences under about 0.2 points are noise.
 
 ### Price forecast
 
@@ -215,6 +226,7 @@ python src/train_patchtst.py   # train PatchTST and compare it with LightGBM and
 python src/plot_patchtst.py    # draw the figures in docs/
 python src/ensemble.py         # blend LightGBM and PatchTST, choosing the weight on the calibration year
 python src/ablation.py pooling flatten mean attention   # compare settings, here the three heads
+python src/ablation.py weather 1 0 --seeds 42 1 2   # e.g. retrain with and without weather, three seeds each
 ```
 
 Each training script logs its settings, results and model to MLflow. Open `http://localhost:5001` to browse and compare runs, and to see model versions.

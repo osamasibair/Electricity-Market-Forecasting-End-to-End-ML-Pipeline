@@ -8,9 +8,8 @@ from torch import nn
 
 from forecast_windows import (
     arrays,
+    covariate_columns,
     covariate_matrix,
-    covariates,
-    cycles,
     gap_steps,
     history_steps,
     horizon,
@@ -57,13 +56,15 @@ class PatchTST(nn.Module):
       cross attention to pick the patches it needs, so every half hour gets its own summary of the week"""
 
     def __init__(self, n_covariates, patch_len=24, stride=12, d_model=64, heads=4, layers=2, dropout=0.1, hidden=128,
-                 pooling="attention", lags=0):
+                 pooling="attention", lags=0, revin=1):
         super().__init__()
         if pooling not in poolings:
             raise ValueError(f"pooling must be one of {poolings}, not {pooling!r}")
         if lags not in (0, 1):
             raise ValueError(f"lags must be 0 or 1, not {lags!r}")
-        self.lags = lags
+        if revin not in (0, 1):
+            raise ValueError(f"revin must be 0 or 1, not {revin!r}")
+        self.lags, self.use_revin = lags, revin
         self.patch_len, self.stride, self.pooling = patch_len, stride, pooling
         n_patches = (history_steps - patch_len) // stride + 1
         self.revin = RevIN()
@@ -82,10 +83,24 @@ class PatchTST(nn.Module):
             self.norm = nn.LayerNorm(d_model)
             self.query = nn.Linear(hidden // 4, d_model)
             self.cross = nn.MultiheadAttention(d_model, heads, dropout=dropout, batch_first=True)
+        if not revin:
+            #without revin every week is scaled by the same mean and spread, those of the training data
+            self.register_buffer("scale", torch.tensor([0.0, 1.0]))
         self.keep_attention, self.attention = False, None
 
+    def normalise(self, history):
+        if self.use_revin:
+            return self.revin.normalise(history)
+        mean, std = self.scale[0].expand(len(history), 1), self.scale[1].expand(len(history), 1)
+        return (history - mean) / std, mean, std
+
+    def denormalise(self, y, mean, std):
+        if self.use_revin:
+            return self.revin.denormalise(y, mean, std)
+        return y * std[..., None] + mean[..., None]
+
     def forward(self, history, future):
-        x, mean, std = self.revin.normalise(history)
+        x, mean, std = self.normalise(history)
         patches = x.unfold(1, self.patch_len, self.stride)
         encoded = self.encoder(self.embed(patches) + self.position)
         if self.lags:
@@ -102,7 +117,7 @@ class PatchTST(nn.Module):
         median = out[..., 1]
         low = median - nn.functional.softplus(out[..., 0])
         high = median + nn.functional.softplus(out[..., 2])
-        return self.revin.denormalise(torch.stack([low, median, high], dim=-1), mean, std)
+        return self.denormalise(torch.stack([low, median, high], dim=-1), mean, std)
 
 
 def pinball_loss(predicted, actual, scale):
@@ -112,9 +127,9 @@ def pinball_loss(predicted, actual, scale):
 
 
 defaults = {"patch_len": 24, "stride": 12, "d_model": 64, "heads": 4, "layers": 2, "dropout": 0.1, "hidden": 128,
-            "pooling": "attention", "lags": 0, "learning_rate": 1e-3, "weight_decay": 1e-2, "batch_size": 128, "max_epochs": 40,
+            "pooling": "attention", "lags": 0, "revin": 1, "weather": 1, "learning_rate": 1e-3, "weight_decay": 1e-2, "batch_size": 128, "max_epochs": 40,
             "patience": 6, "warmup": 0.05, "train_stride": 2, "seed": 42}
-architecture = ["patch_len", "stride", "d_model", "heads", "layers", "dropout", "hidden", "pooling", "lags"]
+architecture = ["patch_len", "stride", "d_model", "heads", "layers", "dropout", "hidden", "pooling", "lags", "revin"]
 
 
 class PatchTSTForecaster:
@@ -126,8 +141,11 @@ class PatchTSTForecaster:
 
     def tensors(self, df, starts):
         history, future, actual = arrays(df, starts)
-        future = (future - self.cov_mean) / self.cov_std
+        future = (future[..., self.columns()] - self.cov_mean) / self.cov_std
         return torch.from_numpy(history), torch.from_numpy(future), torch.from_numpy(actual)
+
+    def columns(self):
+        return covariate_columns(bool(self.settings["weather"]))
 
     def loss(self, history, future, actual):
         scale = history.std(dim=1, unbiased=False) + 1e-5
@@ -138,13 +156,15 @@ class PatchTSTForecaster:
         with `epochs`, train for exactly that many (used to refit on all the data once the best length is known), 
         `callback(epoch, loss)` is called after each epoch's validation loss, which lets Optuna stop poor trials early."""
         torch.manual_seed(self.settings["seed"])
-        cov = covariate_matrix(df)[starts[:, None] + np.arange(horizon)].reshape(-1, len(covariates) + 2 * len(cycles))
+        cov = covariate_matrix(df)[starts[:, None] + np.arange(horizon)][..., self.columns()].reshape(-1, len(self.columns()))
         self.cov_mean, self.cov_std = cov.mean(axis=0), cov.std(axis=0) + 1e-6
         history, future, actual = self.tensors(df, starts)
         if valid is not None:
             valid_tensors = self.tensors(df, valid)
 
         self.net = PatchTST(future.shape[-1], **{name: self.settings[name] for name in architecture})
+        if not self.settings["revin"]:
+            self.net.scale.copy_(torch.stack([history.mean(), history.std()]))
         s = self.settings
         epochs = epochs or s["max_epochs"]
         steps = epochs * math.ceil(len(history) / s["batch_size"])
@@ -203,7 +223,7 @@ class PatchTSTForecaster:
     @classmethod
     def load(cls, path):
         saved = torch.load(path)
-        model = cls(**{"pooling": "flatten", "lags": 0, **saved["settings"]})
+        model = cls(**{"pooling": "flatten", "lags": 0, "revin": 1, "weather": 1, **saved["settings"]})
         model.cov_mean = np.array(saved["cov_mean"], dtype=np.float32)
         model.cov_std = np.array(saved["cov_std"], dtype=np.float32)
         model.best_epochs = saved["best_epochs"]

@@ -7,6 +7,7 @@ from evaluate import metrics
 from features import build_features
 from forecast_windows import (
     arrays,
+    covariate_columns,
     covariate_matrix,
     day_windows,
     gap_steps,
@@ -145,6 +146,40 @@ def test_lags_must_be_0_or_1():
         PatchTST(11, lags=2)
 
 
+def test_without_revin_every_week_uses_the_same_fixed_scale():
+    net = PatchTST(11, revin=0)
+    net.scale.copy_(torch.tensor([30000.0, 3000.0]))
+    history = torch.randn(2, history_steps) * 3000 + 30000
+    x, _, _ = net.normalise(history)
+    assert torch.allclose(x, (history - 30000) / 3000)
+    out = net(history, torch.randn(2, horizon, 11))
+    assert (out[..., 0] <= out[..., 1]).all() and (out[..., 1] <= out[..., 2]).all()
+    assert "scale" in net.state_dict() and "scale" not in PatchTST(11).state_dict()
+
+
+def test_without_revin_the_scale_comes_from_the_training_data_and_is_saved(tmp_path):
+    df = make_features(days=30)
+    train, test = windows(df.index, stride=16), day_windows(df.index)[-2:]
+    model = PatchTSTForecaster(max_epochs=1, d_model=16, hidden=32, revin=0).fit(df, train)
+    history, _, _ = arrays(df, train)
+    assert np.isclose(model.net.scale[0].item(), history.mean(), rtol=1e-4)
+    model.save(tmp_path / "fixed.pt")
+    loaded, _ = PatchTSTForecaster.load(tmp_path / "fixed.pt")
+    assert np.allclose(model.predict(df, test), loaded.predict(df, test))
+
+
+def test_without_weather_only_the_calendar_inputs_are_used():
+    df = make_features(days=30)
+    model = PatchTSTForecaster(max_epochs=1, d_model=16, hidden=32, weather=0).fit(df, windows(df.index, stride=16))
+    assert len(model.cov_mean) == 5 + 2 * 3 - 3
+    assert model.predict(df, day_windows(df.index)[-2:]).shape == (2, horizon, 3)
+
+
+def test_revin_must_be_0_or_1():
+    with pytest.raises(ValueError):
+        PatchTST(11, revin=2)
+
+
 def test_learns_the_daily_shape_after_a_short_training_run():
     df = make_features(days=150)
     train, test = windows(df.index, last="2024-05-01", stride=4), day_windows(df.index, first="2024-05-01")
@@ -185,6 +220,11 @@ def test_saved_model_gives_the_same_forecast_after_loading(tmp_path):
 def test_unknown_settings_are_rejected():
     with pytest.raises(ValueError):
         PatchTSTForecaster(layer=3)
+
+
+def test_covariate_columns_without_weather_drop_temperature_sunshine_and_heating_demand():
+    assert list(covariate_columns(True)) == list(range(11))
+    assert list(covariate_columns(False)) == [3, 4, 5, 6, 7, 8, 9, 10]
 
 
 def test_covariates_include_sin_and_cos_of_the_calendar():

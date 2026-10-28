@@ -1,0 +1,592 @@
+
+revin = 1, seed 42
+patchtst: training on data before the calibration year, stopping when the calibration loss stops improving
+  epoch 1: calibration loss 0.1562 (7s)
+  epoch 2: calibration loss 0.1188 (7s)
+  epoch 3: calibration loss 0.1089 (7s)
+  epoch 4: calibration loss 0.1086 (7s)
+  epoch 5: calibration loss 0.1208 (7s)
+  epoch 6: calibration loss 0.1074 (7s)
+  epoch 7: calibration loss 0.1041 (7s)
+  epoch 8: calibration loss 0.1056 (7s)
+  epoch 9: calibration loss 0.1151 (7s)
+  epoch 10: calibration loss 0.1054 (7s)
+  epoch 11: calibration loss 0.1086 (7s)
+  epoch 12: calibration loss 0.1173 (7s)
+  epoch 13: calibration loss 0.1072 (7s)
+patchtst: best after 7 epochs, conformal adjustment 442 MW
+patchtst: refitting on all data before 2025-09-01 for 7 epochs
+  epoch 1/7 (11s)
+  epoch 2/7 (11s)
+  epoch 3/7 (11s)
+  epoch 4/7 (11s)
+  epoch 5/7 (11s)
+  epoch 6/7 (12s)
+  epoch 7/7 (12s)
+patchtst: trained twice in 170s
+🏃 View run resilient-kite-72 at: http://localhost:5001/#/experiments/7/runs/9dbbedfa0c134e44aea0cdbb45261b57
+🧪 View experiment at: http://localhost:5001/#/experiments/7
+
+revin = 1, seed 1
+patchtst: training on data before the calibration year, stopping when the calibration loss stops improving
+  epoch 1: calibration loss 0.1922 (7s)
+  epoch 2: calibration loss 0.1244 (7s)
+  epoch 3: calibration loss 0.1182 (7s)
+  epoch 4: calibration loss 0.1189 (7s)
+  epoch 5: calibration loss 0.1080 (7s)
+  epoch 6: calibration loss 0.1007 (7s)
+  epoch 7: calibration loss 0.1075 (7s)
+  epoch 8: calibration loss 0.1034 (7s)
+  epoch 9: calibration loss 0.1108 (8s)
+  epoch 10: calibration loss 0.1037 (7s)
+  epoch 11: calibration loss 0.1056 (7s)
+  epoch 12: calibration loss 0.1035 (7s)
+patchtst: best after 6 epochs, conformal adjustment 296 MW
+patchtst: refitting on all data before 2025-09-01 for 6 epochs
+  epoch 1/6 (11s)
+  epoch 2/6 (12s)
+  epoch 3/6 (11s)
+  epoch 4/6 (11s)
+  epoch 5/6 (12s)
+  epoch 6/6 (12s)
+patchtst: trained twice in 154s
+🏃 View run worried-calf-829 at: http://localhost:5001/#/experiments/7/runs/1ece8701c2f3468e9ab0e3038b7834b2
+🧪 View experiment at: http://localhost:5001/#/experiments/7
+
+revin = 1, seed 2
+patchtst: training on data before the calibration year, stopping when the calibration loss stops improving
+  epoch 1: calibration loss 0.1610 (7s)
+  epoch 2: calibration loss 0.1162 (8s)
+  epoch 3: calibration loss 0.1101 (7s)
+  epoch 4: calibration loss 0.1063 (8s)
+  epoch 5: calibration loss 0.1081 (7s)
+  epoch 6: calibration loss 0.1063 (8s)
+  epoch 7: calibration loss 0.1101 (7s)
+  epoch 8: calibration loss 0.1153 (8s)
+  epoch 9: calibration loss 0.1034 (7s)
+  epoch 10: calibration loss 0.1070 (8s)
+  epoch 11: calibration loss 0.1121 (8s)
+  epoch 12: calibration loss 0.1112 (8s)
+  epoch 13: calibration loss 0.1278 (7s)
+  epoch 14: calibration loss 0.1187 (7s)
+  epoch 15: calibration loss 0.1079 (7s)
+patchtst: best after 9 epochs, conformal adjustment 499 MW
+patchtst: refitting on all data before 2025-09-01 for 9 epochs
+  epoch 1/9 (11s)
+  epoch 2/9 (11s)
+  epoch 3/9 (11s)
+  epoch 4/9 (11s)
+  epoch 5/9 (11s)
+  epoch 6/9 (11s)
+  epoch 7/9 (11s)
+  epoch 8/9 (11s)
+  epoch 9/9 (11s)
+patchtst: trained twice in 212s
+🏃 View run popular-ram-787 at: http://localhost:5001/#/experiments/7/runs/2e674cfd4b3348beb2ef09f7c8befa72
+🧪 View experiment at: http://localhost:5001/#/experiments/7
+
+revin = 0, seed 42
+patchtst: training on data before the calibration year, stopping when the calibration loss stops improving
+  epoch 1: calibration loss 0.1519 (7s)
+  epoch 2: calibration loss 0.1121 (6s)
+  epoch 3: calibration loss 0.1067 (6s)
+  epoch 4: calibration loss 0.1042 (9s)
+  epoch 5: calibration loss 0.0991 (9s)
+  epoch 6: calibration loss 0.0963 (6s)
+  epoch 7: calibration loss 0.0962 (6s)
+  epoch 8: calibration loss 0.0971 (5s)
+  epoch 9: calibration loss 0.0967 (6s)
+  epoch 10: calibration loss 0.1007 (6s)
+  epoch 11: calibration loss 0.1030 (5s)
+  epoch 12: calibration loss 0.1071 (5s)
+  epoch 13: calibration loss 0.1048 (5s)
+patchtst: best after 7 epochs, conformal adjustment 440 MW
+patchtst: refitting on all data before 2025-09-01 for 7 epochs
+  epoch 1/7 (9s)
+  epoch 2/7 (9s)
+  epoch 3/7 (9s)
+  epoch 4/7 (9s)
+  epoch 5/7 (9s)
+  epoch 6/7 (9s)
+  epoch 7/7 (9s)
+patchtst: trained twice in 143s
+🏃 View run skillful-bear-81 at: http://localhost:5001/#/experiments/7/runs/93a3d16005cb43de86109559af35fcd3
+🧪 View experiment at: http://localhost:5001/#/experiments/7
+
+revin = 0, seed 1
+patchtst: training on data before the calibration year, stopping when the calibration loss stops improving
+  epoch 1: calibration loss 0.1566 (6s)
+  epoch 2: calibration loss 0.1044 (6s)
+  epoch 3: calibration loss 0.1038 (6s)
+  epoch 4: calibration loss 0.1046 (5s)
+  epoch 5: calibration loss 0.0951 (5s)
+  epoch 6: calibration loss 0.0997 (5s)
+  epoch 7: calibration loss 0.1017 (5s)
+  epoch 8: calibration loss 0.0978 (5s)
+  epoch 9: calibration loss 0.1001 (5s)
+  epoch 10: calibration loss 0.1019 (5s)
+  epoch 11: calibration loss 0.0952 (5s)
+patchtst: best after 5 epochs, conformal adjustment 273 MW
+patchtst: refitting on all data before 2025-09-01 for 5 epochs
+  epoch 1/5 (9s)
+  epoch 2/5 (9s)
+  epoch 3/5 (9s)
+  epoch 4/5 (9s)
+  epoch 5/5 (9s)
+patchtst: trained twice in 104s
+🏃 View run bustling-turtle-853 at: http://localhost:5001/#/experiments/7/runs/5f19861ebaa546129bbea8b68b59b0f8
+🧪 View experiment at: http://localhost:5001/#/experiments/7
+
+revin = 0, seed 2
+patchtst: training on data before the calibration year, stopping when the calibration loss stops improving
+  epoch 1: calibration loss 0.1511 (5s)
+  epoch 2: calibration loss 0.1152 (5s)
+  epoch 3: calibration loss 0.1011 (5s)
+  epoch 4: calibration loss 0.0973 (5s)
+  epoch 5: calibration loss 0.0993 (5s)
+  epoch 6: calibration loss 0.0988 (5s)
+  epoch 7: calibration loss 0.1009 (5s)
+  epoch 8: calibration loss 0.1018 (5s)
+  epoch 9: calibration loss 0.1003 (5s)
+  epoch 10: calibration loss 0.1000 (5s)
+patchtst: best after 4 epochs, conformal adjustment 359 MW
+patchtst: refitting on all data before 2025-09-01 for 4 epochs
+  epoch 1/4 (9s)
+  epoch 2/4 (9s)
+  epoch 3/4 (9s)
+  epoch 4/4 (9s)
+patchtst: trained twice in 89s
+🏃 View run sedate-dove-722 at: http://localhost:5001/#/experiments/7/runs/a53996baa7504db3be1de6feff6eddef
+🧪 View experiment at: http://localhost:5001/#/experiments/7
+
+       revin  parameters  epoch  calib loss            MAPE  in range    width   (3 seeds)
+           1     153,413    7.3      0.1027   5.64% ± 0.18      79.2%  4263 MW
+           0     153,413    5.3      0.0962   5.56% ± 0.39      75.9%  4046 MW
+saved transformer_ablation
+
+weather = 1, seed 42
+patchtst: training on data before the calibration year, stopping when the calibration loss stops improving
+  epoch 1: calibration loss 0.1562 (6s)
+  epoch 2: calibration loss 0.1188 (6s)
+  epoch 3: calibration loss 0.1089 (6s)
+  epoch 4: calibration loss 0.1086 (6s)
+  epoch 5: calibration loss 0.1208 (6s)
+  epoch 6: calibration loss 0.1074 (6s)
+  epoch 7: calibration loss 0.1041 (6s)
+  epoch 8: calibration loss 0.1056 (6s)
+  epoch 9: calibration loss 0.1151 (6s)
+  epoch 10: calibration loss 0.1054 (6s)
+  epoch 11: calibration loss 0.1086 (6s)
+  epoch 12: calibration loss 0.1173 (6s)
+  epoch 13: calibration loss 0.1072 (6s)
+patchtst: best after 7 epochs, conformal adjustment 442 MW
+patchtst: refitting on all data before 2025-09-01 for 7 epochs
+  epoch 1/7 (10s)
+  epoch 2/7 (9s)
+  epoch 3/7 (9s)
+  epoch 4/7 (9s)
+  epoch 5/7 (9s)
+  epoch 6/7 (9s)
+  epoch 7/7 (9s)
+patchtst: trained twice in 137s
+🏃 View run zealous-chimp-793 at: http://localhost:5001/#/experiments/7/runs/a9cf8a89c83b41ccb74dafb19a2b528e
+🧪 View experiment at: http://localhost:5001/#/experiments/7
+
+weather = 1, seed 1
+patchtst: training on data before the calibration year, stopping when the calibration loss stops improving
+  epoch 1: calibration loss 0.1922 (6s)
+  epoch 2: calibration loss 0.1244 (6s)
+  epoch 3: calibration loss 0.1182 (6s)
+  epoch 4: calibration loss 0.1189 (6s)
+  epoch 5: calibration loss 0.1080 (6s)
+  epoch 6: calibration loss 0.1007 (6s)
+  epoch 7: calibration loss 0.1075 (6s)
+  epoch 8: calibration loss 0.1034 (6s)
+  epoch 9: calibration loss 0.1108 (6s)
+  epoch 10: calibration loss 0.1037 (6s)
+  epoch 11: calibration loss 0.1056 (6s)
+  epoch 12: calibration loss 0.1035 (6s)
+patchtst: best after 6 epochs, conformal adjustment 296 MW
+patchtst: refitting on all data before 2025-09-01 for 6 epochs
+  epoch 1/6 (9s)
+  epoch 2/6 (9s)
+  epoch 3/6 (9s)
+  epoch 4/6 (9s)
+  epoch 5/6 (9s)
+  epoch 6/6 (9s)
+patchtst: trained twice in 121s
+🏃 View run vaunted-colt-842 at: http://localhost:5001/#/experiments/7/runs/6ee642bc785540579e400f6823120d58
+🧪 View experiment at: http://localhost:5001/#/experiments/7
+
+weather = 1, seed 2
+patchtst: training on data before the calibration year, stopping when the calibration loss stops improving
+  epoch 1: calibration loss 0.1610 (6s)
+  epoch 2: calibration loss 0.1162 (6s)
+  epoch 3: calibration loss 0.1101 (6s)
+  epoch 4: calibration loss 0.1063 (6s)
+  epoch 5: calibration loss 0.1081 (6s)
+  epoch 6: calibration loss 0.1063 (6s)
+  epoch 7: calibration loss 0.1101 (6s)
+  epoch 8: calibration loss 0.1153 (6s)
+  epoch 9: calibration loss 0.1034 (7s)
+  epoch 10: calibration loss 0.1070 (6s)
+  epoch 11: calibration loss 0.1121 (6s)
+  epoch 12: calibration loss 0.1112 (6s)
+  epoch 13: calibration loss 0.1278 (6s)
+  epoch 14: calibration loss 0.1187 (6s)
+  epoch 15: calibration loss 0.1079 (6s)
+patchtst: best after 9 epochs, conformal adjustment 499 MW
+patchtst: refitting on all data before 2025-09-01 for 9 epochs
+  epoch 1/9 (9s)
+  epoch 2/9 (9s)
+  epoch 3/9 (9s)
+  epoch 4/9 (9s)
+  epoch 5/9 (9s)
+  epoch 6/9 (9s)
+  epoch 7/9 (9s)
+  epoch 8/9 (9s)
+  epoch 9/9 (9s)
+patchtst: trained twice in 165s
+🏃 View run placid-shark-581 at: http://localhost:5001/#/experiments/7/runs/30dae0bdebd74e0ab7e302771c2d2b2f
+🧪 View experiment at: http://localhost:5001/#/experiments/7
+
+weather = 0, seed 42
+patchtst: training on data before the calibration year, stopping when the calibration loss stops improving
+  epoch 1: calibration loss 0.1786 (6s)
+  epoch 2: calibration loss 0.1328 (6s)
+  epoch 3: calibration loss 0.1262 (6s)
+  epoch 4: calibration loss 0.1253 (6s)
+  epoch 5: calibration loss 0.1294 (6s)
+  epoch 6: calibration loss 0.1207 (6s)
+  epoch 7: calibration loss 0.1223 (6s)
+  epoch 8: calibration loss 0.1229 (6s)
+  epoch 9: calibration loss 0.1293 (6s)
+  epoch 10: calibration loss 0.1285 (6s)
+  epoch 11: calibration loss 0.1306 (6s)
+  epoch 12: calibration loss 0.1309 (6s)
+patchtst: best after 6 epochs, conformal adjustment 482 MW
+patchtst: refitting on all data before 2025-09-01 for 6 epochs
+  epoch 1/6 (9s)
+  epoch 2/6 (9s)
+  epoch 3/6 (9s)
+  epoch 4/6 (9s)
+  epoch 5/6 (9s)
+  epoch 6/6 (9s)
+patchtst: trained twice in 120s
+🏃 View run chill-vole-241 at: http://localhost:5001/#/experiments/7/runs/b39f0b65a8784b938916c9e0f7cb0c32
+🧪 View experiment at: http://localhost:5001/#/experiments/7
+
+weather = 0, seed 1
+patchtst: training on data before the calibration year, stopping when the calibration loss stops improving
+  epoch 1: calibration loss 0.1888 (6s)
+  epoch 2: calibration loss 0.1447 (6s)
+  epoch 3: calibration loss 0.1391 (6s)
+  epoch 4: calibration loss 0.1333 (6s)
+  epoch 5: calibration loss 0.1288 (6s)
+  epoch 6: calibration loss 0.1205 (6s)
+  epoch 7: calibration loss 0.1228 (6s)
+  epoch 8: calibration loss 0.1225 (6s)
+  epoch 9: calibration loss 0.1327 (6s)
+  epoch 10: calibration loss 0.1199 (6s)
+  epoch 11: calibration loss 0.1246 (6s)
+  epoch 12: calibration loss 0.1268 (6s)
+  epoch 13: calibration loss 0.1301 (6s)
+  epoch 14: calibration loss 0.1292 (6s)
+  epoch 15: calibration loss 0.1277 (6s)
+  epoch 16: calibration loss 0.1329 (6s)
+patchtst: best after 10 epochs, conformal adjustment 596 MW
+patchtst: refitting on all data before 2025-09-01 for 10 epochs
+  epoch 1/10 (9s)
+  epoch 2/10 (9s)
+  epoch 3/10 (9s)
+  epoch 4/10 (9s)
+  epoch 5/10 (9s)
+  epoch 6/10 (9s)
+  epoch 7/10 (9s)
+  epoch 8/10 (9s)
+  epoch 9/10 (9s)
+  epoch 10/10 (9s)
+patchtst: trained twice in 179s
+🏃 View run incongruous-rook-909 at: http://localhost:5001/#/experiments/7/runs/b08f310023504956a32852c6981c3166
+🧪 View experiment at: http://localhost:5001/#/experiments/7
+
+weather = 0, seed 2
+patchtst: training on data before the calibration year, stopping when the calibration loss stops improving
+  epoch 1: calibration loss 0.1997 (6s)
+  epoch 2: calibration loss 0.1409 (6s)
+  epoch 3: calibration loss 0.1265 (6s)
+  epoch 4: calibration loss 0.1251 (6s)
+  epoch 5: calibration loss 0.1242 (6s)
+  epoch 6: calibration loss 0.1205 (6s)
+  epoch 7: calibration loss 0.1296 (6s)
+  epoch 8: calibration loss 0.1415 (6s)
+  epoch 9: calibration loss 0.1258 (6s)
+  epoch 10: calibration loss 0.1213 (6s)
+  epoch 11: calibration loss 0.1257 (6s)
+  epoch 12: calibration loss 0.1282 (6s)
+patchtst: best after 6 epochs, conformal adjustment 514 MW
+patchtst: refitting on all data before 2025-09-01 for 6 epochs
+  epoch 1/6 (9s)
+  epoch 2/6 (9s)
+  epoch 3/6 (9s)
+  epoch 4/6 (9s)
+  epoch 5/6 (9s)
+  epoch 6/6 (9s)
+patchtst: trained twice in 121s
+🏃 View run fortunate-sheep-206 at: http://localhost:5001/#/experiments/7/runs/6db53becac4d4eb3924da6d853760d33
+🧪 View experiment at: http://localhost:5001/#/experiments/7
+
+     weather  parameters  epoch  calib loss            MAPE  in range    width   (3 seeds)
+           1     153,413    7.3      0.1027   5.64% ± 0.18      79.2%  4263 MW
+           0     153,317    7.3      0.1204   6.47% ± 0.07      81.5%  5192 MW
+saved transformer_ablation
+
+patch_len = 12, seed 42
+patchtst: training on data before the calibration year, stopping when the calibration loss stops improving
+  epoch 1: calibration loss 0.1646 (10s)
+  epoch 2: calibration loss 0.1183 (10s)
+  epoch 3: calibration loss 0.1089 (10s)
+  epoch 4: calibration loss 0.1158 (10s)
+  epoch 5: calibration loss 0.1130 (10s)
+  epoch 6: calibration loss 0.1118 (10s)
+  epoch 7: calibration loss 0.1103 (10s)
+  epoch 8: calibration loss 0.1069 (10s)
+  epoch 9: calibration loss 0.1150 (10s)
+  epoch 10: calibration loss 0.1114 (10s)
+  epoch 11: calibration loss 0.1106 (10s)
+  epoch 12: calibration loss 0.1202 (10s)
+  epoch 13: calibration loss 0.1149 (10s)
+  epoch 14: calibration loss 0.1261 (10s)
+patchtst: best after 8 epochs, conformal adjustment 529 MW
+patchtst: refitting on all data before 2025-09-01 for 8 epochs
+  epoch 1/8 (16s)
+  epoch 2/8 (16s)
+  epoch 3/8 (16s)
+  epoch 4/8 (16s)
+  epoch 5/8 (16s)
+  epoch 6/8 (16s)
+  epoch 7/8 (16s)
+  epoch 8/8 (16s)
+patchtst: trained twice in 264s
+🏃 View run luxuriant-fox-167 at: http://localhost:5001/#/experiments/7/runs/fdf7e46569f64fb683dca7eba0144c55
+🧪 View experiment at: http://localhost:5001/#/experiments/7
+
+patch_len = 12, seed 1
+patchtst: training on data before the calibration year, stopping when the calibration loss stops improving
+  epoch 1: calibration loss 0.1559 (10s)
+  epoch 2: calibration loss 0.1159 (10s)
+  epoch 3: calibration loss 0.1114 (10s)
+  epoch 4: calibration loss 0.1112 (10s)
+  epoch 5: calibration loss 0.1039 (10s)
+  epoch 6: calibration loss 0.1005 (10s)
+  epoch 7: calibration loss 0.1082 (10s)
+  epoch 8: calibration loss 0.1069 (10s)
+  epoch 9: calibration loss 0.1097 (10s)
+  epoch 10: calibration loss 0.1094 (10s)
+  epoch 11: calibration loss 0.1116 (10s)
+  epoch 12: calibration loss 0.1150 (10s)
+patchtst: best after 6 epochs, conformal adjustment 392 MW
+patchtst: refitting on all data before 2025-09-01 for 6 epochs
+  epoch 1/6 (16s)
+  epoch 2/6 (16s)
+  epoch 3/6 (16s)
+  epoch 4/6 (16s)
+  epoch 5/6 (16s)
+  epoch 6/6 (16s)
+patchtst: trained twice in 213s
+🏃 View run fun-lark-960 at: http://localhost:5001/#/experiments/7/runs/bb20069a7a8e41f782a9efb9b6d1d142
+🧪 View experiment at: http://localhost:5001/#/experiments/7
+
+patch_len = 12, seed 2
+patchtst: training on data before the calibration year, stopping when the calibration loss stops improving
+  epoch 1: calibration loss 0.1565 (10s)
+  epoch 2: calibration loss 0.1213 (10s)
+  epoch 3: calibration loss 0.1073 (10s)
+  epoch 4: calibration loss 0.1123 (10s)
+  epoch 5: calibration loss 0.1062 (10s)
+  epoch 6: calibration loss 0.1024 (10s)
+  epoch 7: calibration loss 0.1111 (10s)
+  epoch 8: calibration loss 0.1102 (10s)
+  epoch 9: calibration loss 0.1049 (10s)
+  epoch 10: calibration loss 0.1067 (10s)
+  epoch 11: calibration loss 0.1103 (10s)
+  epoch 12: calibration loss 0.1101 (10s)
+patchtst: best after 6 epochs, conformal adjustment 360 MW
+patchtst: refitting on all data before 2025-09-01 for 6 epochs
+  epoch 1/6 (16s)
+  epoch 2/6 (16s)
+  epoch 3/6 (16s)
+  epoch 4/6 (16s)
+  epoch 5/6 (16s)
+  epoch 6/6 (16s)
+patchtst: trained twice in 212s
+🏃 View run chill-stoat-682 at: http://localhost:5001/#/experiments/7/runs/e5b7a7c2599d4b5ca46cf6c21b63684e
+🧪 View experiment at: http://localhost:5001/#/experiments/7
+
+patch_len = 24, seed 42
+patchtst: training on data before the calibration year, stopping when the calibration loss stops improving
+  epoch 1: calibration loss 0.1562 (5s)
+  epoch 2: calibration loss 0.1188 (5s)
+  epoch 3: calibration loss 0.1089 (5s)
+  epoch 4: calibration loss 0.1086 (5s)
+  epoch 5: calibration loss 0.1208 (5s)
+  epoch 6: calibration loss 0.1074 (5s)
+  epoch 7: calibration loss 0.1041 (5s)
+  epoch 8: calibration loss 0.1056 (5s)
+  epoch 9: calibration loss 0.1151 (5s)
+  epoch 10: calibration loss 0.1054 (6s)
+  epoch 11: calibration loss 0.1086 (5s)
+  epoch 12: calibration loss 0.1173 (5s)
+  epoch 13: calibration loss 0.1072 (5s)
+patchtst: best after 7 epochs, conformal adjustment 442 MW
+patchtst: refitting on all data before 2025-09-01 for 7 epochs
+  epoch 1/7 (9s)
+  epoch 2/7 (9s)
+  epoch 3/7 (9s)
+  epoch 4/7 (9s)
+  epoch 5/7 (9s)
+  epoch 6/7 (9s)
+  epoch 7/7 (9s)
+patchtst: trained twice in 133s
+🏃 View run bemused-perch-105 at: http://localhost:5001/#/experiments/7/runs/fd79083473034c18af79bc1a2b7c69eb
+🧪 View experiment at: http://localhost:5001/#/experiments/7
+
+patch_len = 24, seed 1
+patchtst: training on data before the calibration year, stopping when the calibration loss stops improving
+  epoch 1: calibration loss 0.1922 (5s)
+  epoch 2: calibration loss 0.1244 (6s)
+  epoch 3: calibration loss 0.1182 (5s)
+  epoch 4: calibration loss 0.1189 (5s)
+  epoch 5: calibration loss 0.1080 (5s)
+  epoch 6: calibration loss 0.1007 (5s)
+  epoch 7: calibration loss 0.1075 (5s)
+  epoch 8: calibration loss 0.1034 (5s)
+  epoch 9: calibration loss 0.1108 (5s)
+  epoch 10: calibration loss 0.1037 (5s)
+  epoch 11: calibration loss 0.1056 (5s)
+  epoch 12: calibration loss 0.1035 (6s)
+patchtst: best after 6 epochs, conformal adjustment 296 MW
+patchtst: refitting on all data before 2025-09-01 for 6 epochs
+  epoch 1/6 (9s)
+  epoch 2/6 (9s)
+  epoch 3/6 (9s)
+  epoch 4/6 (9s)
+  epoch 5/6 (9s)
+  epoch 6/6 (9s)
+patchtst: trained twice in 120s
+🏃 View run rare-swan-443 at: http://localhost:5001/#/experiments/7/runs/a05d7fcadeb944ad8bc6f165087cd300
+🧪 View experiment at: http://localhost:5001/#/experiments/7
+
+patch_len = 24, seed 2
+patchtst: training on data before the calibration year, stopping when the calibration loss stops improving
+  epoch 1: calibration loss 0.1610 (6s)
+  epoch 2: calibration loss 0.1162 (6s)
+  epoch 3: calibration loss 0.1101 (6s)
+  epoch 4: calibration loss 0.1063 (6s)
+  epoch 5: calibration loss 0.1081 (6s)
+  epoch 6: calibration loss 0.1063 (6s)
+  epoch 7: calibration loss 0.1101 (6s)
+  epoch 8: calibration loss 0.1153 (6s)
+  epoch 9: calibration loss 0.1034 (6s)
+  epoch 10: calibration loss 0.1070 (6s)
+  epoch 11: calibration loss 0.1121 (6s)
+  epoch 12: calibration loss 0.1112 (6s)
+  epoch 13: calibration loss 0.1278 (6s)
+  epoch 14: calibration loss 0.1187 (6s)
+  epoch 15: calibration loss 0.1079 (6s)
+patchtst: best after 9 epochs, conformal adjustment 499 MW
+patchtst: refitting on all data before 2025-09-01 for 9 epochs
+  epoch 1/9 (9s)
+  epoch 2/9 (9s)
+  epoch 3/9 (9s)
+  epoch 4/9 (9s)
+  epoch 5/9 (9s)
+  epoch 6/9 (9s)
+  epoch 7/9 (9s)
+  epoch 8/9 (9s)
+  epoch 9/9 (9s)
+patchtst: trained twice in 167s
+🏃 View run mercurial-stag-128 at: http://localhost:5001/#/experiments/7/runs/b894676cb7894d80901cb09e87afa85a
+🧪 View experiment at: http://localhost:5001/#/experiments/7
+
+patch_len = 48, seed 42
+patchtst: training on data before the calibration year, stopping when the calibration loss stops improving
+  epoch 1: calibration loss 0.1534 (4s)
+  epoch 2: calibration loss 0.1183 (4s)
+  epoch 3: calibration loss 0.1053 (4s)
+  epoch 4: calibration loss 0.1064 (4s)
+  epoch 5: calibration loss 0.1044 (4s)
+  epoch 6: calibration loss 0.1092 (4s)
+  epoch 7: calibration loss 0.1108 (4s)
+  epoch 8: calibration loss 0.1053 (4s)
+  epoch 9: calibration loss 0.1162 (4s)
+  epoch 10: calibration loss 0.1105 (4s)
+  epoch 11: calibration loss 0.1126 (4s)
+patchtst: best after 5 epochs, conformal adjustment 321 MW
+patchtst: refitting on all data before 2025-09-01 for 5 epochs
+  epoch 1/5 (7s)
+  epoch 2/5 (7s)
+  epoch 3/5 (7s)
+  epoch 4/5 (7s)
+  epoch 5/5 (7s)
+patchtst: trained twice in 78s
+🏃 View run luminous-turtle-514 at: http://localhost:5001/#/experiments/7/runs/72fe00e7715f470ea2a0a55fae29adf9
+🧪 View experiment at: http://localhost:5001/#/experiments/7
+
+patch_len = 48, seed 1
+patchtst: training on data before the calibration year, stopping when the calibration loss stops improving
+  epoch 1: calibration loss 0.1635 (4s)
+  epoch 2: calibration loss 0.1186 (4s)
+  epoch 3: calibration loss 0.1180 (4s)
+  epoch 4: calibration loss 0.1149 (4s)
+  epoch 5: calibration loss 0.1117 (4s)
+  epoch 6: calibration loss 0.1084 (4s)
+  epoch 7: calibration loss 0.1162 (4s)
+  epoch 8: calibration loss 0.1104 (4s)
+  epoch 9: calibration loss 0.1147 (4s)
+  epoch 10: calibration loss 0.1154 (4s)
+  epoch 11: calibration loss 0.1090 (4s)
+  epoch 12: calibration loss 0.1111 (4s)
+patchtst: best after 6 epochs, conformal adjustment 481 MW
+patchtst: refitting on all data before 2025-09-01 for 6 epochs
+  epoch 1/6 (7s)
+  epoch 2/6 (7s)
+  epoch 3/6 (7s)
+  epoch 4/6 (7s)
+  epoch 5/6 (7s)
+  epoch 6/6 (7s)
+patchtst: trained twice in 89s
+🏃 View run valuable-pug-391 at: http://localhost:5001/#/experiments/7/runs/f6c871810eee481889f3da15cca11c15
+🧪 View experiment at: http://localhost:5001/#/experiments/7
+
+patch_len = 48, seed 2
+patchtst: training on data before the calibration year, stopping when the calibration loss stops improving
+  epoch 1: calibration loss 0.1770 (4s)
+  epoch 2: calibration loss 0.1143 (4s)
+  epoch 3: calibration loss 0.1179 (4s)
+  epoch 4: calibration loss 0.1101 (4s)
+  epoch 5: calibration loss 0.1096 (4s)
+  epoch 6: calibration loss 0.1051 (4s)
+  epoch 7: calibration loss 0.1149 (4s)
+  epoch 8: calibration loss 0.1221 (4s)
+  epoch 9: calibration loss 0.1056 (4s)
+  epoch 10: calibration loss 0.1070 (4s)
+  epoch 11: calibration loss 0.1095 (5s)
+  epoch 12: calibration loss 0.1109 (4s)
+patchtst: best after 6 epochs, conformal adjustment 343 MW
+patchtst: refitting on all data before 2025-09-01 for 6 epochs
+  epoch 1/6 (7s)
+  epoch 2/6 (7s)
+  epoch 3/6 (7s)
+  epoch 4/6 (7s)
+  epoch 5/6 (7s)
+  epoch 6/6 (7s)
+patchtst: trained twice in 91s
+🏃 View run sneaky-pug-512 at: http://localhost:5001/#/experiments/7/runs/f8a3b5d54e22462cb004717c78f40279
+🧪 View experiment at: http://localhost:5001/#/experiments/7
+
+   patch_len  parameters  epoch  calib loss            MAPE  in range    width   (3 seeds)
+          12     154,437    6.7      0.1032   5.83% ± 0.22      78.3%  4407 MW
+          24     153,413    7.3      0.1027   5.64% ± 0.18      79.2%  4263 MW
+          48     154,053    5.7      0.1060   5.63% ± 0.15      81.1%  4472 MW
+saved transformer_ablation
