@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ensemble import best_weight, blend, weight_table, weights
+from ensemble import best_weight, blend, mix, three_way_table, weight_table, weights
 
 
 def make_frame(rows=480, seed=0, lightgbm_noise=400, patchtst_noise=400):
@@ -49,3 +49,22 @@ def test_every_weight_is_recalibrated_to_about_80_percent():
     assert len(table) == len(weights)
     assert table["test_coverage"].between(70, 90).all()
     assert table["weight"].tolist() == pytest.approx(list(weights))
+
+
+
+
+def test_mix_with_two_models_matches_blend():
+    frame = make_frame()
+    assert np.allclose(mix(frame, {"patchtst": 0.3, "lightgbm": 0.7})["ensemble_low"], blend(frame, 0.3)["ensemble_low"])
+
+
+def test_three_way_weights_add_up_to_one_and_cover_each_model_alone():
+    calib, test = make_frame(seed=1), make_frame(seed=2)
+    for frame in (calib, test):
+        frame["chronos2_finetuned"] = frame["actual"] + 300
+        frame["chronos2_finetuned_low"] = frame["chronos2_finetuned"] - 600
+        frame["chronos2_finetuned_high"] = frame["chronos2_finetuned"] + 600
+    table = three_way_table(calib, test, "chronos2_finetuned")
+    total = table["lightgbm_weight"] + table["patchtst_weight"] + table["third_weight"]
+    assert np.allclose(total, 1) and len(table) == 231
+    assert (table["third_weight"] == 1).sum() == 1 and (table["lightgbm_weight"] == 1).sum() == 1

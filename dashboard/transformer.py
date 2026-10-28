@@ -9,6 +9,9 @@ alt.data_transformers.disable_max_rows()
 names = {
     "baseline": "Same time last week",
     "chronos": "Chronos (pretrained, zero shot)",
+    "chronos2": "Chronos-2 (zero shot, demand only)",
+    "chronos2_covariates": "Chronos-2 (zero shot, with weather)",
+    "chronos2_finetuned": "Chronos-2 (fine tuned, with weather)",
     "patchtst": "PatchTST (trained from scratch)",
     "lightgbm": "LightGBM",
 }
