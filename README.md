@@ -4,11 +4,11 @@
 [![Deploy](https://github.com/osamasibair/GB-Power-Market-Forecasting-and-Trading-End-to-End-ML-Pipeline/actions/workflows/deploy.yml/badge.svg)](https://github.com/osamasibair/GB-Power-Market-Forecasting-and-Trading-End-to-End-ML-Pipeline/actions/workflows/deploy.yml)
 [![Daily forecast](https://github.com/osamasibair/GB-Power-Market-Forecasting-and-Trading-End-to-End-ML-Pipeline/actions/workflows/daily.yml/badge.svg?event=schedule)](https://github.com/osamasibair/GB-Power-Market-Forecasting-and-Trading-End-to-End-ML-Pipeline/actions/workflows/daily.yml)
 
-An end to end machine learning pipeline that forecasts Great Britain's half hourly electricity demand and price one day ahead, from raw public data to a tested, containerised API, and backtests a battery trading strategy on the price forecasts.
+An end-to-end machine learning system that forecasts Great Britain’s electricity demand, prices and backtests battery trading, taken to production, then used as a testbed to compare gradient boosting with deep learning.
 
-**Live:** [API docs](https://electricity-api-xqiuvbbyca-nw.a.run.app/docs) · [Latest forecast](https://electricity-api-xqiuvbbyca-nw.a.run.app/forecast/latest) · [Dashboard](https://electricity-dashboard-xqiuvbbyca-nw.a.run.app) (live monitoring, plus price, spike, backtest and transformer results)
+**Live:** [API docs](https://electricity-api-xqiuvbbyca-nw.a.run.app/docs) · [Latest forecast](https://electricity-api-xqiuvbbyca-nw.a.run.app/forecast/latest) · [Dashboard](https://electricity-dashboard-xqiuvbbyca-nw.a.run.app) (live monitoring, plus price, spike, backtest and model comparison results)
 
-- **Demand: LightGBM day ahead model: 5.08% MAPE, about 40% lower error than a same-time-last-week baseline (8.40%), with 80% prediction intervals achieving 80.2% coverage.**
+- **Demand: LightGBM day ahead model: 5.08% MAPE, about 39% lower error than a same-time-last-week baseline (8.39%), with 80% prediction intervals achieving 80.2% coverage.**
 - **Price: LightGBM model with £21.50/MWh MAE, 15% lower than the best naive baseline, using wind, solar and net demand to forecast cheap and expensive periods.**
 - **Spikes: LightGBM classifier that ranks spike risk 2.5x better than persistence (average precision 0.43 vs 0.17, ROC AUC 0.90).**
 - **Backtest: a simulated 1 MW / 2 MWh battery scheduled from the price forecast earns 77% of the perfect foresight profit, against 52% for a baseline forecast and 74% for a simple average of the last 7 days prices.**
